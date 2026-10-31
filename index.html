@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap">
 <style>
-/* Layout: one centered search stage like a sky; results drop below as soft cards */
+/* Layout: 음표 + 큰 검색창, 그 아래 노래 썸네일 격자. 재생 중엔 화면 아래 작은 플레이어 */
 :root {
   --sky: #dff1fb;
   --sky-deep: #b9e0f4;
@@ -39,113 +39,64 @@ html, body { margin: 0; }
 [hidden] { display: none !important; }
 img { max-width: 100%; }
 body {
-  background: var(--sky);
-  color: var(--ink);
-  font-family: var(--font-body);
-  font-size: 17px;
-  line-height: 1.6;
-  min-height: 100vh;
+  background: var(--sky); color: var(--ink);
+  font-family: var(--font-body); font-size: 17px; line-height: 1.6; min-height: 100vh;
 }
 .wrap {
-  max-width: 720px;
-  margin: 0 auto;
-  padding-block: 48px 64px;
+  max-width: 760px; margin: 0 auto;
+  padding-block: 40px 64px;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
   display: flex; flex-direction: column; gap: 28px;
 }
-header { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; }
+header { display: flex; justify-content: center; }
 .logo { width: 92px; height: 92px; }
-h1 {
-  font-family: var(--font-display); font-weight: 400;
-  font-size: clamp(40px, 9vw, 60px); line-height: 1.1; margin: 0;
-  letter-spacing: -0.01em; text-wrap: balance;
-}
-h1 .q { color: var(--tomato); }
-.tag { margin: 0; color: var(--ink-soft); font-size: 18px; }
 
-form { position: relative; }
 .bar {
   display: flex; align-items: center; gap: 8px;
   background: var(--card); border: 4px solid var(--ink);
   border-radius: 999px; padding: 8px 8px 8px 22px;
-  box-shadow: 0 6px 0 var(--ink);
-  transition: transform .15s;
+  box-shadow: 0 6px 0 var(--ink); transition: transform .15s;
 }
 .bar:focus-within { transform: translateY(-2px); box-shadow: 0 8px 0 var(--ink); }
 #q {
   flex: 1; min-width: 0; border: 0; outline: none; background: transparent;
-  font-family: var(--font-display); font-size: 24px; color: var(--ink);
-  padding: 8px 0;
+  font-family: var(--font-display); font-size: 24px; color: var(--ink); padding: 8px 0;
 }
 #q::placeholder { color: var(--ink-soft); opacity: .7; }
 #go {
-  flex: none; border: 0; cursor: pointer;
-  background: var(--sun); color: #233a4a;
-  font-family: var(--font-display); font-size: 22px;
-  padding: 12px 24px; border-radius: 999px;
+  flex: none; border: 0; cursor: pointer; background: var(--sun); color: #233a4a;
+  font-family: var(--font-display); font-size: 22px; padding: 12px 24px; border-radius: 999px;
 }
-#go:hover { filter: brightness(1.05); }
-#go:focus-visible, .chip:focus-visible { outline: 3px solid var(--tomato); outline-offset: 3px; }
+#go:focus-visible { outline: 3px solid var(--tomato); outline-offset: 3px; }
 .hint { margin: 12px 0 0; text-align: center; color: var(--ink-soft); font-size: 15px; }
 
-.chips { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
-.chip {
-  border: 2px solid var(--line); background: var(--card); color: var(--ink);
-  font-family: var(--font-display); font-size: 18px;
-  padding: 6px 16px; border-radius: 999px; cursor: pointer;
-}
-.chip:hover { border-color: var(--ink); }
-
-.status { font-family: var(--font-display); font-size: 22px; margin: 0; }
-.results { display: grid; gap: 16px; }
-.card {
-  background: var(--card); border-radius: 24px; padding: 20px 22px;
-  display: grid; grid-template-columns: 64px 1fr; gap: 16px; align-items: start;
-  border: 2px solid var(--line);
-  animation: pop .25s ease-out;
-}
-.badge {
-  width: 64px; height: 64px; border-radius: 20px;
-  display: grid; place-items: center;
-  font-family: var(--font-display); font-size: 30px; color: #233a4a;
-}
-.card h2 { font-family: var(--font-display); font-weight: 400; font-size: 26px; margin: 0; line-height: 1.2; }
-.card .cat { font-size: 14px; color: var(--ink-soft); letter-spacing: .04em; }
-.card p { margin: 6px 0 0; min-width: 0; }
-.fact { margin-top: 10px !important; padding: 10px 14px; border-radius: 14px; background: var(--sky); font-size: 15px; }
-.fact b { color: var(--tomato); font-weight: 400; font-family: var(--font-display); }
-mark { background: var(--sun); color: #233a4a; border-radius: 4px; padding: 0 2px; }
-.empty { text-align: center; color: var(--ink-soft); }
-.group { font-family: var(--font-display); font-size: 20px; margin: 8px 0 0; color: var(--ink-soft); }
+.status { font-family: var(--font-display); font-size: 22px; margin: 0 0 12px; }
+.empty { text-align: center; color: var(--ink-soft); margin: 0; }
 .vids { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
 .vid {
   background: var(--card); border: 2px solid var(--line); border-radius: 22px;
   padding: 10px; cursor: pointer; text-align: left; color: var(--ink);
   display: flex; flex-direction: column; gap: 8px; font: inherit;
+  animation: pop .25s ease-out;
 }
 .vid:hover { border-color: var(--ink); }
 .vid:focus-visible { outline: 3px solid var(--tomato); outline-offset: 3px; }
 .vid.on { border-color: var(--tomato); box-shadow: 0 0 0 3px var(--tomato); }
 .thumb {
   position: relative; aspect-ratio: 16/9; max-width: 100%; border-radius: 14px; overflow: hidden;
-  background: var(--sky-deep); display: grid; place-items: center;
+  background: var(--ph, var(--sky-deep)); display: grid; place-items: center;
 }
-.thumb { background: var(--ph, var(--sky-deep)); }
 .thumb .ph { position: absolute; font-family: var(--font-display); font-size: 44px; color: #233a4a; }
 .thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
 .thumb.sm { width: 96px; flex: none; border-radius: 10px; }
 .thumb.sm .ph { font-size: 24px; }
 .thumb .play {
   position: absolute; width: 52px; height: 52px; border-radius: 50%;
-  background: var(--sun); display: grid; place-items: center;
-  box-shadow: 0 3px 0 rgba(0,0,0,.25);
+  background: var(--sun); display: grid; place-items: center; box-shadow: 0 3px 0 rgba(0,0,0,.25);
 }
 .vid .vt { font-family: var(--font-display); font-size: 19px; line-height: 1.3; padding: 0 4px 4px; }
-.yt-link {
-  display: inline-block; margin-top: 10px; font-family: var(--font-display); font-size: 16px;
-  color: var(--tomato); text-decoration: none; border-bottom: 2px solid currentColor;
-}
+mark { background: var(--sun); color: #233a4a; border-radius: 4px; padding: 0 2px; }
 
 .dock {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
@@ -154,7 +105,7 @@ mark { background: var(--sun); color: #233a4a; border-radius: 4px; padding: 0 2p
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
 }
-.dock-in { max-width: 720px; margin: 0 auto; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.dock-in { max-width: 760px; margin: 0 auto; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
 .player { width: 356px; max-width: 100%; aspect-ratio: 16/9; border-radius: 12px; overflow: hidden; background: #000; flex: none; }
 .player iframe { width: 100%; height: 100%; border: 0; display: block; }
 .dock-side { flex: 1; min-width: 160px; display: flex; flex-direction: column; gap: 10px; }
@@ -167,58 +118,51 @@ mark { background: var(--sun); color: #233a4a; border-radius: 4px; padding: 0 2p
 .stop:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
 body.playing .wrap { padding-bottom: 300px; }
 
-.grown {
-  border: 2px dashed var(--line); border-radius: 20px; padding: 14px 18px; background: transparent;
-}
+.grown { border: 2px dashed var(--line); border-radius: 20px; padding: 14px 18px; }
 .grown summary { cursor: pointer; font-family: var(--font-display); font-size: 18px; color: var(--ink-soft); }
-.grown form { display: grid; gap: 10px; margin-top: 14px; }
+.grown h4 { font-family: var(--font-display); font-weight: 400; font-size: 19px; margin: 22px 0 0; }
+.grown .note { margin: 4px 0 0; font-size: 14px; color: var(--ink-soft); }
+.grown .note a { color: var(--tomato); }
+.grown form { display: grid; gap: 10px; margin-top: 12px; }
 .grown label { font-size: 14px; color: var(--ink-soft); display: grid; gap: 4px; }
 .grown input {
   font: inherit; font-size: 16px; padding: 10px 12px; border-radius: 12px;
   border: 2px solid var(--line); background: var(--card); color: var(--ink); min-width: 0;
 }
-.grown .add {
+.btn {
   justify-self: start; border: 0; cursor: pointer; background: var(--leaf); color: #fff;
   font-family: var(--font-display); font-size: 18px; padding: 8px 20px; border-radius: 999px;
 }
+.btn.ghost { background: var(--card); color: var(--ink); border: 2px solid var(--line); font-size: 15px; padding: 4px 14px; }
+.btn:disabled { opacity: .5; cursor: wait; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.range { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .msg { font-size: 14px; margin: 0; min-height: 1.4em; }
 .msg.err { color: var(--tomato); }
 .msg.ok { color: var(--leaf); }
-.range { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.saved { list-style: none; padding: 0; margin: 14px 0 0; display: grid; gap: 8px; }
+.pill { font-size: 13px; padding: 2px 10px; border-radius: 999px; background: var(--sky); color: var(--ink-soft); }
+.pill.on { background: var(--leaf); color: #fff; }
+.saved { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 8px; }
 .saved li { display: flex; gap: 12px; align-items: center; font-size: 15px; }
 .saved li .txt { flex: 1; min-width: 0; overflow-wrap: anywhere; display: flex; flex-direction: column; }
 .saved li .txt b { font-family: var(--font-display); font-weight: 400; font-size: 17px; }
-.grown h4 { font-family: var(--font-display); font-weight: 400; font-size: 19px; margin: 22px 0 0; }
-.grown .note { margin: 4px 0 0; font-size: 14px; color: var(--ink-soft); }
-.words { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-.word {
-  border: 2px solid var(--line); background: var(--card); color: var(--ink);
-  font-family: var(--font-display); font-size: 16px; padding: 4px 12px; border-radius: 999px; cursor: pointer;
-}
-.word::after { content: " ×"; color: var(--ink-soft); }
-.word.off { opacity: .5; text-decoration: line-through; border-style: dashed; }
-.word.off::after { content: " ↺"; text-decoration: none; }
-.word:focus-visible, .del:focus-visible, .restore:focus-visible { outline: 3px solid var(--tomato); outline-offset: 2px; }
-.restore {
-  margin-top: 12px; border: 2px solid var(--line); background: var(--card); color: var(--ink);
-  border-radius: 999px; padding: 4px 14px; cursor: pointer; font: inherit; font-size: 14px;
-}
 .saved small { color: var(--ink-soft); }
 .del {
   flex: none; border: 2px solid var(--line); background: var(--card); color: var(--ink-soft);
   border-radius: 999px; padding: 4px 14px; cursor: pointer; font: inherit; font-size: 14px;
 }
 .del.sure { background: var(--tomato); border-color: var(--tomato); color: #fff; }
+.del:focus-visible, .btn:focus-visible { outline: 3px solid var(--tomato); outline-offset: 2px; }
 @keyframes pop { from { transform: translateY(6px); opacity: .4; } to { transform: none; opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .card { animation: none; } .bar { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .vid { animation: none; } .bar { transition: none; } }
 @media (max-width: 480px) {
   #q { font-size: 20px; }
   #go { padding: 10px 16px; font-size: 19px; }
-  .card { grid-template-columns: 1fr; }
+  .vids { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .vid .vt { font-size: 16px; }
+  .thumb .play { width: 40px; height: 40px; }
 }
 </style>
-
 </head>
 <body>
 <div class="wrap">
@@ -233,29 +177,43 @@ body.playing .wrap { padding-bottom: 300px; }
 
   <form id="f" role="search">
     <div class="bar">
-      <label for="q" class="sr" hidden>검색어</label>
-      <input id="q" type="search" autocomplete="off" placeholder="예: 고래, 공룡, ㅁㅈㄱ" aria-label="검색어">
+      <input id="q" type="search" autocomplete="off" placeholder="노래 이름을 적어 봐" aria-label="노래 찾기">
       <button id="go" type="submit">찾기</button>
     </div>
     <p class="hint">글자 첫소리만 적어도 찾아줘요. ㄱㄹ → 고래</p>
   </form>
 
-  <div class="chips" id="chips" aria-label="이런 걸 찾아볼까?"></div>
-
   <section aria-live="polite">
     <p class="status" id="status"></p>
-    <div class="results" id="results"></div>
+    <div id="results"></div>
   </section>
 
   <details class="grown" id="grown">
     <summary>어른용 · 노래 넣기와 정리</summary>
+
+    <h4>이 기기 연결</h4>
+    <p class="note">노래 목록은 모든 기기가 함께 써요. 넣고 빼려면 이 기기에 GitHub 토큰을 한 번 저장해 주세요.
+      <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">토큰 만들기</a>
+      (Repository access: kids-search 하나만, Permissions → Contents: Read and write)</p>
+    <form id="tokForm" novalidate>
+      <label for="tok">토큰
+        <input id="tok" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_...">
+      </label>
+      <div class="row">
+        <button class="btn" type="submit">저장</button>
+        <button class="btn ghost" type="button" id="tokOff" hidden>이 기기에서 토큰 지우기</button>
+        <span class="pill" id="tokState">연결 안 됨</span>
+      </div>
+      <p class="msg" id="tokMsg" aria-live="polite"></p>
+    </form>
+
     <h4>노래 넣기</h4>
     <form id="addForm" novalidate>
       <label for="vUrl">유튜브 주소
         <input id="vUrl" type="text" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://youtu.be/... 또는 youtube.com/watch?v=...">
       </label>
       <label for="vTitle">아이에게 보일 이름
-        <input id="vTitle" type="text" placeholder="예: 아기상어 동요 (비우면 '내 영상 1'처럼 붙여요)">
+        <input id="vTitle" type="text" placeholder="예: 아기상어 동요 (비우면 '내 노래 1'처럼 붙여요)">
       </label>
       <label for="vKeys">찾을 때 쓸 낱말 (띄어쓰기로 구분)
         <input id="vKeys" type="text" placeholder="예: 상어 바다 동요">
@@ -268,17 +226,21 @@ body.playing .wrap { padding-bottom: 300px; }
           <input id="vEnd" type="text" inputmode="numeric" placeholder="끝까지">
         </label>
       </div>
-      <button class="add" type="submit">넣기</button>
+      <button class="btn" type="submit" id="addBtn">넣기</button>
       <p class="msg" id="addMsg" aria-live="polite"></p>
     </form>
+
+    <div id="legacyBox" hidden>
+      <h4>이 기기에만 있던 노래</h4>
+      <p class="note" id="legacyNote"></p>
+      <div class="row" style="margin-top:8px">
+        <button class="btn" type="button" id="legacyMove">함께 쓰는 목록으로 옮기기</button>
+      </div>
+    </div>
+
     <h4>넣은 노래</h4>
     <p class="note">필요 없는 노래는 ‘빼기’를 두 번 누르면 지워져요.</p>
     <ul class="saved" id="saved"></ul>
-
-    <h4>기본 낱말 카드</h4>
-    <p class="note">누르면 검색에서 빠져요. 한 번 더 누르면 돌아와요.</p>
-    <div class="words" id="words"></div>
-    <button type="button" class="restore" id="restore" hidden>빼 둔 낱말 모두 되돌리기</button>
   </details>
 </div>
 
@@ -294,68 +256,133 @@ body.playing .wrap { padding-bottom: 300px; }
 </div>
 
 <script>
-const DATA = [
-  { n:"고래", c:"바다 동물", k:"바다 포유류 대왕고래", t:"고래는 물고기처럼 생겼지만 우리처럼 숨을 쉬는 포유류예요. 머리 위 숨구멍으로 공기를 마셔요.", f:"대왕고래는 지구에서 가장 큰 동물이에요. 몸길이가 버스 세 대만큼 길어요." },
-  { n:"공룡", c:"옛날 동물", k:"티라노 화석 쥐라기", t:"공룡은 아주 아주 옛날 지구에 살던 동물이에요. 지금은 뼈 화석으로만 만날 수 있어요.", f:"새는 공룡의 후손이래요. 참새도 공룡의 먼 친척이에요." },
-  { n:"달", c:"우주", k:"보름달 초승달 우주", t:"달은 지구 둘레를 빙글빙글 도는 친구예요. 스스로 빛나지 않고 햇빛을 받아서 반짝여요.", f:"달은 한 달쯤마다 모양이 바뀌어 보여요. 초승달, 반달, 보름달!" },
-  { n:"해", c:"우주", k:"태양 햇빛 별", t:"해는 아주 뜨거운 별이에요. 해가 있어서 낮이 밝고 식물이 자라요.", f:"해 안에는 지구가 백만 개도 넘게 들어갈 수 있어요." },
-  { n:"별", c:"우주", k:"밤하늘 별자리 반짝", t:"밤하늘의 별들은 아주 멀리 있는 해 같은 친구들이에요. 너무 멀어서 작게 보여요.", f:"우리가 보는 별빛은 아주 오래전에 출발한 빛이에요." },
-  { n:"지구", c:"우주", k:"행성 우리별 둥근", t:"지구는 우리가 사는 둥근 행성이에요. 하루에 한 바퀴씩 돌아서 낮과 밤이 생겨요.", f:"지구 겉의 대부분은 바다예요. 그래서 우주에서 보면 파랗게 보여요." },
-  { n:"무지개", c:"날씨", k:"일곱 색깔 빛 비", t:"비가 그친 뒤 햇빛이 작은 물방울을 지나면 색깔이 나뉘어서 무지개가 생겨요.", f:"무지개를 보려면 해를 등지고 서야 해요." },
-  { n:"비", c:"날씨", k:"구름 우산 물방울", t:"구름 속 작은 물방울들이 모여 무거워지면 땅으로 떨어져요. 그게 비예요.", f:"빗방울은 그림처럼 눈물 모양이 아니라 동글납작한 모양이에요." },
-  { n:"눈사람", c:"날씨", k:"눈 겨울 하얀", t:"겨울에 내린 하얀 눈을 굴려 만들어요. 눈송이는 아주 작은 얼음 결정이에요.", f:"눈송이는 모두 육각형이에요. 똑같은 모양은 거의 없대요." },
-  { n:"화산", c:"땅", k:"용암 불 산", t:"땅속 깊은 곳의 뜨거운 녹은 돌이 밖으로 터져 나오는 산이에요.", f:"제주도 한라산도 옛날에 화산이었어요." },
-  { n:"개미", c:"곤충", k:"벌레 곤충 일개미", t:"개미는 여왕개미를 중심으로 함께 모여 사는 곤충이에요. 서로 냄새로 이야기해요.", f:"개미는 자기 몸무게보다 수십 배 무거운 것도 들 수 있어요." },
-  { n:"나비", c:"곤충", k:"애벌레 번데기 날개", t:"나비는 애벌레에서 번데기를 거쳐 날개를 단 모습으로 바뀌어요.", f:"나비는 발로 맛을 느껴요!" },
-  { n:"꿀벌", c:"곤충", k:"벌 꿀 꽃", t:"꿀벌은 꽃에서 꿀을 모으면서 꽃가루를 옮겨 열매가 열리게 도와줘요.", f:"꿀벌은 춤을 춰서 친구들에게 꽃이 있는 곳을 알려줘요." },
-  { n:"거북이", c:"동물", k:"등껍질 바다거북 느림", t:"거북이는 단단한 등껍질을 집처럼 지고 다녀요. 위험하면 몸을 쏙 숨겨요.", f:"어떤 거북이는 100살이 넘게 살아요." },
-  { n:"코끼리", c:"동물", k:"코 땅 큰 동물", t:"코끼리는 땅 위에서 가장 큰 동물이에요. 긴 코로 물도 마시고 물건도 집어요.", f:"코끼리는 발바닥으로 멀리서 오는 친구의 발소리를 느껴요." },
-  { n:"펭귄", c:"동물", k:"남극 새 얼음", t:"펭귄은 날지 못하는 새예요. 대신 바닷속에서 날개로 슝슝 헤엄쳐요.", f:"황제펭귄은 아빠가 알을 발 위에 올려 따뜻하게 품어요." },
-];
+/* ---------- 함께 쓰는 노래 목록: 저장소의 songs.json ---------- */
+const REPO = "replaceman/kids-search";
+const FILE = "songs.json";
+const API = `https://api.github.com/repos/${REPO}/contents/${FILE}`;
+const TOKEN_KEY = "kids-search-token";
+const LEGACY_KEY = "kids-search-videos";
+const CACHE_KEY = "kids-search-cache";
+
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+  del(k) { try { localStorage.removeItem(k); } catch (e) {} },
+};
+let token = store.get(TOKEN_KEY) || "";
+let SONGS = [];
+try { SONGS = JSON.parse(store.get(CACHE_KEY) || "[]"); } catch (e) { SONGS = []; }
+
+const b64ToText = b64 => {
+  const bin = atob(b64.replace(/\s/g, ""));
+  const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+};
+const textToB64 = s => {
+  const bytes = new TextEncoder().encode(s);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+};
+const headers = () => {
+  const h = { "Accept": "application/vnd.github+json" };
+  if (token) h["Authorization"] = `Bearer ${token}`;
+  return h;
+};
+
+// 최신 목록 + 수정에 필요한 sha 받아오기
+async function fetchRemote() {
+  const r = await fetch(`${API}?ref=main&t=${Date.now()}`, { headers: headers(), cache: "no-store" });
+  if (r.status === 404) return { list: [], sha: null };
+  if (!r.ok) throw new Error(String(r.status));
+  const j = await r.json();
+  const list = JSON.parse(b64ToText(j.content) || "[]");
+  return { list: Array.isArray(list) ? list : [], sha: j.sha };
+}
+
+async function loadSongs() {
+  try {
+    const { list } = await fetchRemote();
+    SONGS = list;
+  } catch (e) {
+    // API가 막히면 사이트에 같이 올라간 파일을 읽음 (반영이 1~2분 늦을 수 있음)
+    try {
+      const r = await fetch(`./${FILE}?t=${Date.now()}`, { cache: "no-store" });
+      if (r.ok) SONGS = await r.json();
+    } catch (e2) {}
+  }
+  store.set(CACHE_KEY, JSON.stringify(SONGS));
+  renderAll();
+}
+
+// 목록을 고쳐서 저장소에 저장. 다른 기기가 먼저 고쳤으면 최신본에 다시 적용
+async function commit(change, message) {
+  if (!token) throw new Error("NO_TOKEN");
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const { list, sha } = await fetchRemote();
+    const next = change(list);
+    const body = { message, content: textToB64(JSON.stringify(next, null, 2) + "\n"), branch: "main" };
+    if (sha) body.sha = sha;
+    const r = await fetch(API, { method: "PUT", headers: { ...headers(), "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (r.ok) { SONGS = next; store.set(CACHE_KEY, JSON.stringify(SONGS)); renderAll(); return; }
+    if (r.status === 409 || r.status === 422) continue;
+    throw new Error(String(r.status));
+  }
+  throw new Error("CONFLICT");
+}
+const errText = e => ({
+  NO_TOKEN: "이 기기에 토큰이 없어요. 위 ‘이 기기 연결’에서 먼저 저장해 주세요.",
+  401: "토큰이 맞지 않거나 만료됐어요. 새로 만들어 저장해 주세요.",
+  403: "토큰에 쓰기 권한이 없어요. Contents를 Read and write로 만들어 주세요.",
+  404: "토큰이 kids-search 저장소에 접근하지 못해요. Repository access에 kids-search를 넣어 주세요.",
+  CONFLICT: "다른 기기에서 동시에 고치는 중이었어요. 잠시 뒤 다시 눌러 주세요.",
+}[e.message] || `저장하지 못했어요 (${e.message}). 인터넷 연결을 확인하고 다시 눌러 주세요.`);
+
+/* ---------- 검색 ---------- */
 const CHO = ["ㄱ","ㄲ","ㄴ","ㄷ","ㄸ","ㄹ","ㅁ","ㅂ","ㅃ","ㅅ","ㅆ","ㅇ","ㅈ","ㅉ","ㅊ","ㅋ","ㅌ","ㅍ","ㅎ"];
-const COLORS = ["var(--sun)","#8fd3f4","#ffb3a1","#a8e6c4","#ffd98a","#c3d8ff"];
+const COLORS = ["#ffc93c","#8fd3f4","#ffb3a1","#a8e6c4","#ffd98a","#c3d8ff"];
 const chosung = s => [...s].map(ch => {
   const c = ch.charCodeAt(0) - 0xAC00;
   return (c >= 0 && c < 11172) ? CHO[Math.floor(c / 588)] : ch;
 }).join("");
 const isAllCho = s => s.length > 0 && [...s].every(ch => CHO.includes(ch));
-const esc = s => s.replace(/[&<>"]/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
+const esc = s => String(s).replace(/[&<>"]/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]));
+const vkey = v => v.key || v.id;
 
-function search(raw) {
+function searchSongs(raw) {
   const q = raw.trim().replace(/\s+/g, "");
-  if (!q) return [];
-  return DATA.map((d, i) => {
-    let score = 0;
-    if (d.n === q) score = 100;
-    else if (d.n.startsWith(q)) score = 80;
-    else if (d.n.includes(q)) score = 60;
-    else if (isAllCho(q) && chosung(d.n).startsWith(q)) score = 70;
-    else if (isAllCho(q) && chosung(d.n).includes(q)) score = 50;
-    else if (d.k.replace(/\s/g,"").includes(q) || d.c.includes(q)) score = 30;
-    else if (d.t.includes(q)) score = 10;
-    return { d, i, score };
-  }).filter(r => r.score > 0 && !HIDDEN.has(r.d.n)).sort((a, b) => b.score - a.score);
+  if (!q) return SONGS;
+  return SONGS.map(v => {
+    const t = v.title.replace(/\s/g, "");
+    let s = 0;
+    if (t.startsWith(q)) s = 3;
+    else if (t.includes(q)) s = 2;
+    else if (isAllCho(q) && chosung(t).includes(q)) s = 2;
+    else if ((v.keys || "").replace(/\s/g, "").includes(q)) s = 1;
+    return { v, s };
+  }).filter(x => x.s).sort((a, b) => b.s - a.s).map(x => x.v);
 }
-
 function hl(text, q) {
   if (!q || isAllCho(q)) return esc(text);
-  const idx = text.indexOf(q);
-  if (idx < 0) return esc(text);
-  return esc(text.slice(0, idx)) + "<mark>" + esc(q) + "</mark>" + esc(text.slice(idx + q.length));
+  const i = text.indexOf(q);
+  return i < 0 ? esc(text) : esc(text.slice(0, i)) + "<mark>" + esc(q) + "</mark>" + esc(text.slice(i + q.length));
 }
 
-/* ---------- 유튜브 영상 목록 (이 브라우저에만 저장) ---------- */
-const KEY = "kids-search-videos";
-let VIDEOS = [];
-try { VIDEOS = JSON.parse(localStorage.getItem(KEY) || "[]"); } catch (e) { VIDEOS = []; }
-const saveVideos = () => { try { localStorage.setItem(KEY, JSON.stringify(VIDEOS)); } catch (e) {} };
-
-/* 기본 낱말 중 어른이 빼 둔 것 */
-const HKEY = "kids-search-hidden";
-let HIDDEN = new Set();
-try { HIDDEN = new Set(JSON.parse(localStorage.getItem(HKEY) || "[]")); } catch (e) {}
-const saveHidden = () => { try { localStorage.setItem(HKEY, JSON.stringify([...HIDDEN])); } catch (e) {} };
-
+/* ---------- 시간 ---------- */
+function toSec(s) {
+  s = (s || "").trim();
+  if (!s) return null;
+  const km = s.match(/^(?:(\d+)\s*시간)?\s*(?:(\d+)\s*분)?\s*(?:(\d+)\s*초)?$/);
+  if (km && (km[1] || km[2] || km[3])) return (+km[1] || 0) * 3600 + (+km[2] || 0) * 60 + (+km[3] || 0);
+  if (/^\d+(:\d{1,2}){0,2}$/.test(s)) return s.split(":").reduce((a, p) => a * 60 + +p, 0);
+  return NaN;
+}
+const fmt = n => { const m = Math.floor(n / 60), s = n % 60; return m ? `${m}:${String(s).padStart(2, "0")}` : `${s}초`; };
+const rangeText = v => (v.start || v.end) ? `${fmt(v.start || 0)} ~ ${v.end ? fmt(v.end) : "끝"}` : "";
+function urlStart(url) {
+  const m = (url || "").match(/[?&#](?:t|start)=(\d+h)?(\d+m)?(\d+)s?/);
+  return m ? (parseInt(m[1]) || 0) * 3600 + (parseInt(m[2]) || 0) * 60 + (+m[3]) : null;
+}
 function ytId(url) {
   try {
     let s = url.trim();
@@ -375,43 +402,14 @@ function ytId(url) {
   } catch (e) { return ""; }
 }
 
-// "1:05", "65", "1분 5초", "1:02:03" → 초. 비었으면 null, 못 읽으면 NaN
-function toSec(s) {
-  s = (s || "").trim();
-  if (!s) return null;
-  const km = s.match(/^(?:(\d+)\s*시간)?\s*(?:(\d+)\s*분)?\s*(?:(\d+)\s*초)?$/);
-  if (km && (km[1] || km[2] || km[3])) return (+km[1] || 0) * 3600 + (+km[2] || 0) * 60 + (+km[3] || 0);
-  if (/^\d+(:\d{1,2}){0,2}$/.test(s)) return s.split(":").reduce((a, p) => a * 60 + +p, 0);
-  return NaN;
-}
-const fmt = n => { const m = Math.floor(n / 60), s = n % 60; return m ? `${m}:${String(s).padStart(2, "0")}` : `${s}초`; };
-const rangeText = v => (v.start || v.end) ? `${fmt(v.start || 0)} ~ ${v.end ? fmt(v.end) : "끝"}` : "";
-function urlStart(url) {
-  const m = (url || "").match(/[?&#](?:t|start)=(\d+h)?(\d+m)?(\d+)s?/);
-  return m ? (parseInt(m[1]) || 0) * 3600 + (parseInt(m[2]) || 0) * 60 + (+m[3]) : null;
-}
-
-const vkey = v => v.key || v.id;
-
-function searchVideos(raw) {
-  const q = raw.trim().replace(/\s+/g, "");
-  if (!q) return [];
-  return VIDEOS.filter(v => {
-    const hay = (v.title + " " + v.keys).replace(/\s/g, "");
-    if (hay.includes(q)) return true;
-    if (isAllCho(q)) return chosung(v.title.replace(/\s/g, "")).includes(q);
-    return false;
-  });
-}
-
-/* ---------- 재생: 작은 플레이어를 화면 아래에 그대로 보여 줌 ---------- */
+/* ---------- 재생 ---------- */
 let playingId = "";
 const $dock = document.getElementById("dock");
 const $player = document.getElementById("player");
 function play(v) {
   playingId = vkey(v);
   const rng = (v.start ? `&start=${v.start}` : "") + (v.end ? `&end=${v.end}` : "");
-  $player.innerHTML = `<iframe src="https://www.youtube-nocookie.com/embed/${v.id}?autoplay=1&playsinline=1&rel=0&modestbranding=1${rng}"
+  $player.innerHTML = `<iframe src="https://www.youtube-nocookie.com/embed/${v.id}?autoplay=1&playsinline=1&rel=0${rng}"
     title="${esc(v.title)}" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>`;
   document.getElementById("nowTitle").textContent = v.title;
   $dock.hidden = false;
@@ -419,23 +417,16 @@ function play(v) {
   markPlaying();
 }
 function stop() {
-  playingId = "";
-  $player.innerHTML = "";
-  $dock.hidden = true;
-  document.body.classList.remove("playing");
-  markPlaying();
+  playingId = ""; $player.innerHTML = ""; $dock.hidden = true;
+  document.body.classList.remove("playing"); markPlaying();
 }
 function markPlaying() {
   document.querySelectorAll(".vid").forEach(b => b.classList.toggle("on", b.dataset.id === playingId));
 }
 document.getElementById("stop").addEventListener("click", stop);
 
-const $q = document.getElementById("q");
-const $status = document.getElementById("status");
-const $results = document.getElementById("results");
+/* ---------- 그리기 ---------- */
 const PLAY_ICON = `<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="#233a4a"/></svg>`;
-
-// 유튜브 썸네일. 못 불러오면 색 타일 + 첫 글자로 대신함
 function thumb(v, cls = "", inner = "") {
   const n = [...v.id].reduce((a, c) => a + c.charCodeAt(0), 0);
   return `<span class="thumb ${cls}" style="--ph:${COLORS[n % COLORS.length]}">
@@ -444,146 +435,170 @@ function thumb(v, cls = "", inner = "") {
     ${inner}
   </span>`;
 }
+const $q = document.getElementById("q");
+const $status = document.getElementById("status");
+const $results = document.getElementById("results");
 
-function vidCard(v) {
-  return `<button type="button" class="vid" data-id="${vkey(v)}">
-    ${thumb(v, "", `<span class="play">${PLAY_ICON}</span>`)}
-    <span class="vt">${esc(v.title)}</span>
-  </button>`;
-  // 구간은 어른용 목록에만 표시
-}
-
-function render(raw) {
+function render() {
+  const raw = $q.value;
   const q = raw.trim().replace(/\s+/g, "");
-  if (!q) {
-    $status.textContent = VIDEOS.length ? "내 노래" : "";
-    $results.innerHTML = VIDEOS.length ? `<div class="vids">${VIDEOS.map(vidCard).join("")}</div>` : "";
-    markPlaying();
-    return;
-  }
-  const hits = search(raw);
-  const vhits = searchVideos(raw);
-  const total = hits.length + vhits.length;
-  if (!total) {
+  const list = searchSongs(raw);
+  if (!SONGS.length) {
     $status.textContent = "";
-    $results.innerHTML = `<p class="empty">‘${esc(raw.trim())}’은(는) 아직 몰라요. 아래 단어로 찾아볼까요?</p>
-      <p class="empty"><a class="yt-link" href="https://www.youtube.com/results?search_query=${encodeURIComponent(raw.trim() + " 어린이")}" target="_blank" rel="noopener">유튜브에서 ‘${esc(raw.trim())}’ 찾아보기</a></p>`;
+    $results.innerHTML = `<p class="empty">아직 노래가 없어요. 어른에게 노래를 넣어 달라고 해 보세요.</p>`;
     return;
   }
-  $status.textContent = `${total}개를 찾았어요!`;
-  let html = "";
-  if (vhits.length) {
-    html += `<h3 class="group">들어 볼까?</h3><div class="vids">${vhits.map(vidCard).join("")}</div>`;
+  if (!list.length) {
+    $status.textContent = "";
+    $results.innerHTML = `<p class="empty">‘${esc(raw.trim())}’ 노래는 아직 없어요.</p>`;
+    return;
   }
-  if (hits.length) {
-    if (vhits.length) html += `<h3 class="group">알아 볼까?</h3>`;
-    html += hits.map(({ d, i }) => `
-    <article class="card">
-      <div class="badge" style="background:${COLORS[i % COLORS.length]}">${esc(d.n[0])}</div>
-      <div style="min-width:0">
-        <span class="cat">${esc(d.c)}</span>
-        <h2>${hl(d.n, q)}</h2>
-        <p>${hl(d.t, q)}</p>
-        <p class="fact"><b>알고 있었니?</b> ${esc(d.f)}</p>
-        <a class="yt-link" href="https://www.youtube.com/results?search_query=${encodeURIComponent(d.n + " 어린이")}" target="_blank" rel="noopener">유튜브에서 더 보기</a>
-      </div>
-    </article>`).join("");
-  }
-  $results.innerHTML = html;
+  $status.textContent = q ? `${list.length}곡을 찾았어요!` : "내 노래";
+  $results.innerHTML = `<div class="vids">${list.map(v => `
+    <button type="button" class="vid" data-id="${esc(vkey(v))}">
+      ${thumb(v, "", `<span class="play">${PLAY_ICON}</span>`)}
+      <span class="vt">${hl(v.title, q)}</span>
+    </button>`).join("")}</div>`;
   markPlaying();
 }
-
 $results.addEventListener("click", e => {
   const b = e.target.closest(".vid"); if (!b) return;
-  const v = VIDEOS.find(x => vkey(x) === b.dataset.id);
+  const v = SONGS.find(x => vkey(x) === b.dataset.id);
   if (!v) return;
-  if (playingId === vkey(v)) stop(); else play(v);
+  playingId === vkey(v) ? stop() : play(v);
 });
+document.getElementById("f").addEventListener("submit", e => { e.preventDefault(); render(); });
+$q.addEventListener("input", render);
 
-/* ---------- 어른용: 영상 넣기 / 빼기 ---------- */
+/* ---------- 어른용 ---------- */
 const $saved = document.getElementById("saved");
-const $msg = document.getElementById("addMsg");
 function renderSaved() {
-  $saved.innerHTML = VIDEOS.length
-    ? VIDEOS.map(v => `<li>${thumb(v, "sm")}
+  $saved.innerHTML = SONGS.length
+    ? SONGS.map(v => `<li>${thumb(v, "sm")}
         <span class="txt"><b>${esc(v.title)}</b><small>${esc([rangeText(v), v.keys].filter(Boolean).join(" · "))}</small></span>
-        <button type="button" class="del" data-id="${vkey(v)}">빼기</button></li>`).join("")
-    : `<li><small>아직 넣은 노래가 없어요. 위에 주소를 넣으면 여기와 첨 화면에 썸네일로 보여요.</small></li>`;
+        <button type="button" class="del" data-id="${esc(vkey(v))}">빼기</button></li>`).join("")
+    : `<li><small>아직 넣은 노래가 없어요.</small></li>`;
 }
+function renderToken() {
+  document.getElementById("tokState").textContent = token ? "이 기기 연결됨" : "연결 안 됨";
+  document.getElementById("tokState").classList.toggle("on", !!token);
+  document.getElementById("tokOff").hidden = !token;
+}
+function renderLegacy() {
+  let legacy = [];
+  try { legacy = JSON.parse(store.get(LEGACY_KEY) || "[]"); } catch (e) {}
+  const fresh = legacy.filter(l => !SONGS.some(s => vkey(s) === vkey(l)));
+  document.getElementById("legacyBox").hidden = !fresh.length;
+  document.getElementById("legacyNote").textContent =
+    `예전 방식으로 이 기기에만 저장된 노래가 ${fresh.length}곡 있어요: ${fresh.map(v => v.title).join(", ")}`;
+  return fresh;
+}
+function renderAll() { render(); renderSaved(); renderToken(); renderLegacy(); }
 
-const $words = document.getElementById("words");
-const $restore = document.getElementById("restore");
-function renderWords() {
-  $words.innerHTML = DATA.map(d => `<button type="button" class="word${HIDDEN.has(d.n) ? " off" : ""}" data-n="${esc(d.n)}"
-    aria-pressed="${HIDDEN.has(d.n)}" title="${HIDDEN.has(d.n) ? "다시 보이기" : "검색에서 빼기"}">${esc(d.n)}</button>`).join("");
-  $restore.hidden = HIDDEN.size === 0;
-}
-$words.addEventListener("click", e => {
-  const b = e.target.closest(".word"); if (!b) return;
-  const n = b.dataset.n;
-  HIDDEN.has(n) ? HIDDEN.delete(n) : HIDDEN.add(n);
-  saveHidden(); renderWords(); renderChips(); render($q.value);
-});
-$restore.addEventListener("click", () => {
-  HIDDEN.clear(); saveHidden(); renderWords(); renderChips(); render($q.value);
-});
-document.getElementById("addForm").addEventListener("submit", e => {
+document.getElementById("tokForm").addEventListener("submit", async e => {
   e.preventDefault();
+  const $m = document.getElementById("tokMsg");
+  const val = document.getElementById("tok").value.trim();
+  $m.className = "msg";
+  if (!val) { $m.textContent = "토큰을 붙여 넣어 주세요."; $m.classList.add("err"); return; }
+  const prev = token; token = val;
+  try {
+    // 저장소에 접근 가능한지 확인
+    const r = await fetch(`https://api.github.com/repos/${REPO}`, { headers: headers() });
+    if (!r.ok) throw new Error(String(r.status));
+    const j = await r.json();
+    if (j.permissions && !j.permissions.push) throw new Error("403");
+    store.set(TOKEN_KEY, token);
+    e.target.reset();
+    $m.textContent = "연결했어요. 이제 이 기기에서 노래를 넣고 뺄 수 있어요."; $m.classList.add("ok");
+  } catch (err) {
+    token = prev;
+    $m.textContent = errText(err); $m.classList.add("err");
+  }
+  renderToken();
+});
+document.getElementById("tokOff").addEventListener("click", () => {
+  token = ""; store.del(TOKEN_KEY); renderToken();
+  const $m = document.getElementById("tokMsg");
+  $m.className = "msg ok"; $m.textContent = "이 기기에서 토큰을 지웠어요.";
+});
+
+document.getElementById("addForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const $msg = document.getElementById("addMsg");
+  const $btn = document.getElementById("addBtn");
   const url = document.getElementById("vUrl").value;
-  const title = document.getElementById("vTitle").value.trim() || `내 영상 ${VIDEOS.length + 1}`;
   const keys = document.getElementById("vKeys").value.trim();
   const id = ytId(url);
   $msg.className = "msg";
-  if (!url.trim()) { $msg.textContent = "유튜브 주소를 먼저 붙여 넣어 주세요."; $msg.classList.add("err"); return; }
-  if (!id) { $msg.textContent = "이 주소에서 영상을 찾지 못했어요. 유튜브에서 '공유 → 복사'한 주소를 그대로 붙여 넣어 주세요."; $msg.classList.add("err"); return; }
+  const fail = t => { $msg.textContent = t; $msg.classList.add("err"); };
+  if (!url.trim()) return fail("유튜브 주소를 먼저 붙여 넣어 주세요.");
+  if (!id) return fail("이 주소에서 영상을 찾지 못했어요. 유튜브에서 ‘공유 → 복사’한 주소를 그대로 붙여 넣어 주세요.");
   let start = toSec(document.getElementById("vStart").value);
   const end = toSec(document.getElementById("vEnd").value);
-  if (Number.isNaN(start) || Number.isNaN(end)) { $msg.textContent = "시간은 1:05 나 65 처럼 적어 주세요."; $msg.classList.add("err"); return; }
+  if (Number.isNaN(start) || Number.isNaN(end)) return fail("시간은 1:05 나 65 처럼 적어 주세요.");
   if (start === null) start = urlStart(url);
-  if (end !== null && end <= (start || 0)) { $msg.textContent = "끝 시간이 시작 시간보다 뒤여야 해요."; $msg.classList.add("err"); return; }
-  if (VIDEOS.some(v => v.id === id && (v.start || 0) === (start || 0) && (v.end || 0) === (end || 0))) { $msg.textContent = "이미 넣은 영상이에요."; $msg.classList.add("err"); return; }
-  VIDEOS.push({ id, title, keys, start: start || 0, end: end || 0, key: `${id}-${start || 0}-${end || 0}` });
-  saveVideos(); renderSaved();
-  e.target.reset();
-  $msg.textContent = `‘${title}’을(를) 넣었어요.`; $msg.classList.add("ok");
-  render($q.value);
+  if (end !== null && end <= (start || 0)) return fail("끝 시간이 시작 시간보다 뒤여야 해요.");
+  const key = `${id}-${start || 0}-${end || 0}`;
+  if (!token) return fail(errText(new Error("NO_TOKEN")));
+  $btn.disabled = true; $msg.textContent = "넣는 중…";
+  let title = document.getElementById("vTitle").value.trim();
+  try {
+    await commit(list => {
+      if (list.some(v => vkey(v) === key)) throw new Error("DUP");
+      if (!title) title = `내 노래 ${list.length + 1}`;
+      return [...list, { id, title, keys, start: start || 0, end: end || 0, key }];
+    }, `노래 넣기: ${title || id}`);
+    e.target.reset();
+    $msg.className = "msg ok"; $msg.textContent = `‘${title}’을(를) 넣었어요. 다른 기기에서는 새로고침하면 보여요.`;
+  } catch (err) {
+    $msg.className = "msg";
+    fail(err.message === "DUP" ? "이미 넣은 노래예요." : errText(err));
+  } finally { $btn.disabled = false; }
 });
-$saved.addEventListener("click", e => {
+
+$saved.addEventListener("click", async e => {
   const b = e.target.closest(".del"); if (!b) return;
-  // 실수로 지우지 않도록 두 번 눌러야 지움
   if (!b.classList.contains("sure")) {
     $saved.querySelectorAll(".del.sure").forEach(x => { x.classList.remove("sure"); x.textContent = "빼기"; });
     b.classList.add("sure"); b.textContent = "정말 빼기";
-    setTimeout(() => { if (b.isConnected) { b.classList.remove("sure"); b.textContent = "빼기"; } }, 3000);
+    setTimeout(() => { if (b.isConnected && b.classList.contains("sure")) { b.classList.remove("sure"); b.textContent = "빼기"; } }, 3000);
     return;
   }
-  if (playingId === b.dataset.id) stop();
-  VIDEOS = VIDEOS.filter(v => vkey(v) !== b.dataset.id);
-  saveVideos(); renderSaved(); renderChips(); render($q.value);
-});
-renderSaved();
-renderWords();
-
-document.getElementById("f").addEventListener("submit", e => { e.preventDefault(); render($q.value); });
-$q.addEventListener("input", () => render($q.value));
-
-const picks = ["고래","공룡","무지개","화산","ㅍㄱ","우주","곤충"];
-// 빼 둔 낱말만 남는 추천어는 숨김
-function renderChips() {
-  document.getElementById("chips").innerHTML = picks
-    .filter(p => search(p).length || searchVideos(p).length)
-    .map(p => `<button type="button" class="chip">${p}</button>`).join("");
-}
-renderChips();
-document.getElementById("chips").addEventListener("click", e => {
-  const b = e.target.closest(".chip"); if (!b) return;
-  $q.value = b.textContent; render($q.value); $q.focus();
+  const k = b.dataset.id;
+  const v = SONGS.find(x => vkey(x) === k);
+  b.disabled = true; b.textContent = "빼는 중…";
+  try {
+    if (playingId === k) stop();
+    await commit(list => list.filter(x => vkey(x) !== k), `노래 빼기: ${v ? v.title : k}`);
+  } catch (err) {
+    b.disabled = false; b.classList.remove("sure"); b.textContent = "빼기";
+    const $msg = document.getElementById("addMsg");
+    $msg.className = "msg err"; $msg.textContent = errText(err);
+  }
 });
 
-// 첫 화면에서 어떻게 동작하는지 보이도록 예시 검색 하나를 띄워 둡니다
-// 넣은 노래가 있으면 첫 화면에 썸네일로 보여 주고, 없으면 예시 검색을 띄움
-if (VIDEOS.length) render("");
-else if (!HIDDEN.has("고래")) { $q.value = "고래"; render("고래"); }
+document.getElementById("legacyMove").addEventListener("click", async e => {
+  const btn = e.target; const fresh = renderLegacy();
+  if (!fresh.length) return;
+  const $msg = document.getElementById("addMsg");
+  if (!token) { $msg.className = "msg err"; $msg.textContent = errText(new Error("NO_TOKEN")); return; }
+  btn.disabled = true;
+  try {
+    await commit(list => {
+      const add = fresh.filter(l => !list.some(s => vkey(s) === vkey(l)))
+        .map(l => ({ id: l.id, title: l.title, keys: l.keys || "", start: l.start || 0, end: l.end || 0, key: vkey(l) }));
+      return [...list, ...add];
+    }, `이 기기 노래 ${fresh.length}곡 옮기기`);
+    store.del(LEGACY_KEY); renderLegacy();
+    $msg.className = "msg ok"; $msg.textContent = "옮겼어요. 이제 모든 기기에서 보여요.";
+  } catch (err) {
+    $msg.className = "msg err"; $msg.textContent = errText(err);
+  } finally { btn.disabled = false; }
+});
+
+renderAll();   // 마지막으로 받아 둔 목록을 먼저 보여 주고
+loadSongs();   // 최신 목록으로 바꿈
 </script>
 </body>
 </html>
