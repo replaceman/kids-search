@@ -107,7 +107,26 @@ mark { background: var(--sun); color: #233a4a; border-radius: 4px; padding: 0 2p
 }
 .dock-in { max-width: 760px; margin: 0 auto; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
 .player { width: 356px; max-width: 100%; aspect-ratio: 16/9; border-radius: 12px; overflow: hidden; background: #000; flex: none; }
+.player { position: relative; }
 .player iframe { width: 100%; height: 100%; border: 0; display: block; }
+/* 영상 위를 덮는 그림. 소리만 들리게 */
+.cover { position: absolute; inset: 0; z-index: 2; }
+.cover .thumb { width: 100%; height: 100%; border-radius: 0; }
+.cover .eq { position: absolute; right: 10px; bottom: 10px; display: flex; gap: 4px; align-items: flex-end; height: 28px; }
+.cover .eq i { width: 6px; background: var(--sun); border-radius: 3px; animation: eq 1s ease-in-out infinite; }
+.cover .eq i:nth-child(2) { animation-delay: -.3s; } .cover .eq i:nth-child(3) { animation-delay: -.6s; }
+.cover.paused .eq i { animation: none; height: 6px; }
+@keyframes eq { 0%,100% { height: 6px; } 50% { height: 28px; } }
+@media (prefers-reduced-motion: reduce) { .cover .eq i { animation: none; height: 14px; } }
+.dock-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.pp {
+  border: 0; cursor: pointer; background: var(--sun); color: #233a4a;
+  font-family: var(--font-display); font-size: 20px; padding: 10px 22px; border-radius: 999px;
+}
+.peek { border: 2px solid var(--line); background: var(--card); color: var(--ink-soft); cursor: pointer;
+  font: inherit; font-size: 13px; padding: 4px 12px; border-radius: 999px; align-self: flex-start; }
+.pp:focus-visible, .peek:focus-visible { outline: 3px solid var(--tomato); outline-offset: 3px; }
+.dock-note { font-size: 14px; color: var(--tomato); margin: 0; }
 .dock-side { flex: 1; min-width: 160px; display: flex; flex-direction: column; gap: 10px; }
 .now { font-family: var(--font-display); font-size: 14px; color: var(--ink-soft); }
 .now-title { font-family: var(--font-display); font-size: 22px; line-height: 1.25; }
@@ -340,7 +359,12 @@ body.playing .wrap { padding-bottom: 300px; }
     <div class="dock-side">
       <span class="now">지금 듣는 중</span>
       <span class="now-title" id="nowTitle"></span>
-      <button class="stop" id="stop" type="button">그만 듣기</button>
+      <div class="dock-btns">
+        <button class="pp" id="pp" type="button">잠깐 멈추기</button>
+        <button class="stop" id="stop" type="button">그만 듣기</button>
+      </div>
+      <p class="dock-note" id="dockNote" hidden></p>
+      <button class="peek" id="peek" type="button">화면 보기</button>
     </div>
   </div>
 </div>
@@ -481,21 +505,75 @@ function ytId(url) {
 }
 
 /* ---------- 아이 화면 재생 ---------- */
-let playingId = "";
-function play(v) {
-  playingId = vkey(v);
-  const rng = (v.start ? `&start=${v.start}` : "") + (v.end ? `&end=${v.end}` : "");
-  $("player").innerHTML = `<iframe src="https://www.youtube-nocookie.com/embed/${v.id}?autoplay=1&playsinline=1&rel=0${rng}"
-    title="${esc(v.title)}" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>`;
+let playingId = "", kidPlayer = null, startTimer = 0, screenOn = false;
+// 화면은 그림으로 덮고 소리만. 광고 건너뛰기나 자동 재생이 막혔을 땐 '화면 보기'로 열 수 있음
+function showScreen(on, note) {
+  screenOn = on;
+  const c = $("player").querySelector(".cover");
+  if (c) c.hidden = on;
+  $("peek").textContent = on ? "화면 가리기" : "화면 보기";
+  $("dockNote").hidden = !note;
+  $("dockNote").textContent = note || "";
+}
+function setPaused(p) {
+  $("pp").textContent = p ? "다시 듣기" : "잠깐 멈추기";
+  const c = $("player").querySelector(".cover");
+  if (c) c.classList.toggle("paused", p);
+}
+async function play(v) {
+  const k = vkey(v);
+  playingId = k;
+  clearTimeout(startTimer);
+  if (kidPlayer && kidPlayer.destroy) { try { kidPlayer.destroy(); } catch (e) {} }
+  kidPlayer = null;
+  $("player").innerHTML = `<div id="kidYT"></div>
+    <div class="cover paused">${thumb(v)}<span class="eq" aria-hidden="true"><i></i><i></i><i></i></span></div>`;
   $("nowTitle").textContent = v.title;
   $("dock").hidden = false;
   document.body.classList.add("playing");
+  showScreen(false); setPaused(false);
   markPlaying();
+  await loadYT();
+  if (playingId !== k) return;
+  const vars = { autoplay: 1, playsinline: 1, rel: 0, start: v.start || 0 };
+  if (v.end) vars.end = v.end;
+  kidPlayer = new YT.Player("kidYT", {
+    host: "https://www.youtube-nocookie.com",
+    videoId: v.id,
+    playerVars: vars,
+    events: {
+      onReady: e => { try { e.target.playVideo(); } catch (err) {} },
+      onStateChange: e => {
+        if (playingId !== k) return;
+        if (e.data === YT.PlayerState.PLAYING) {
+          setPaused(false);
+          if (screenOn && $("dockNote").textContent) showScreen(false);
+        } else if (e.data === YT.PlayerState.PAUSED) setPaused(true);
+        else if (e.data === YT.PlayerState.ENDED) stop();
+      },
+    },
+  });
+  // 휴대폰에서 자동 재생이 막히면 화면을 열어 직접 ▶를 누르게 함
+  startTimer = setTimeout(() => {
+    if (playingId !== k || !kidPlayer || !kidPlayer.getPlayerState) return;
+    const s = kidPlayer.getPlayerState();
+    if (s !== YT.PlayerState.PLAYING && s !== YT.PlayerState.BUFFERING) {
+      showScreen(true, "자동으로 시작이 안 됐어요. 화면의 ▶를 한 번 눌러 주세요. 시작되면 다시 가려져요.");
+    }
+  }, 4000);
 }
 function stop() {
+  clearTimeout(startTimer);
+  if (kidPlayer && kidPlayer.destroy) { try { kidPlayer.destroy(); } catch (e) {} }
+  kidPlayer = null;
   playingId = ""; $("player").innerHTML = ""; $("dock").hidden = true;
   document.body.classList.remove("playing"); markPlaying();
 }
+$("pp").addEventListener("click", () => {
+  if (!kidPlayer || !kidPlayer.getPlayerState) return;
+  kidPlayer.getPlayerState() === YT.PlayerState.PLAYING ? kidPlayer.pauseVideo() : kidPlayer.playVideo();
+});
+$("peek").addEventListener("click", () => showScreen(!screenOn));
 function markPlaying() {
   document.querySelectorAll(".vid").forEach(b => b.classList.toggle("on", b.dataset.id === playingId));
 }
