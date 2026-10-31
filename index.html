@@ -105,8 +105,8 @@ mark { background: var(--sun); color: #233a4a; border-radius: 4px; padding: 0 2p
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
 }
-.dock-in { max-width: 760px; margin: 0 auto; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
-.player { width: 356px; max-width: 100%; aspect-ratio: 16/9; border-radius: 12px; overflow: hidden; background: #000; flex: none; }
+.dock-in { max-width: 760px; margin: 0 auto; display: flex; gap: 12px; align-items: center; }
+.player { width: 128px; max-width: 100%; aspect-ratio: 16/9; transition: width .2s; border-radius: 12px; overflow: hidden; background: #000; flex: none; }
 .player { position: relative; }
 .dock { transition: transform .2s; }
 .dock.off { transform: translateY(calc(100% + 20px)); pointer-events: none; }
@@ -134,7 +134,7 @@ mark { background: var(--sun); color: #233a4a; border-radius: 4px; padding: 0 2p
 .peek { border: 2px solid var(--line); background: var(--card); color: var(--ink-soft); cursor: pointer;
   font: inherit; font-size: 13px; padding: 4px 12px; border-radius: 999px; align-self: flex-start; }
 .pp:focus-visible, .peek:focus-visible { outline: 3px solid var(--tomato); outline-offset: 3px; }
-.dock-note { font-size: 14px; color: var(--tomato); margin: 0; }
+.dock-note { font-size: 13px; color: var(--tomato); margin: 0; }
 .dock-side { flex: 1; min-width: 160px; display: flex; flex-direction: column; gap: 10px; }
 .now { font-family: var(--font-display); font-size: 14px; color: var(--ink-soft); }
 .now-title { font-family: var(--font-display); font-size: 22px; line-height: 1.25; }
@@ -143,7 +143,30 @@ mark { background: var(--sun); color: #233a4a; border-radius: 4px; padding: 0 2p
   font-family: var(--font-display); font-size: 20px; padding: 10px 22px; border-radius: 999px;
 }
 .stop:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
-body.playing .wrap { padding-bottom: 300px; }
+body.playing .wrap { padding-bottom: calc(var(--dockH, 160px) + 24px); }
+.dock-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.fold {
+  flex: none; border: 2px solid var(--line); background: var(--card); color: var(--ink);
+  font-family: var(--font-display); font-size: 14px; padding: 2px 12px; border-radius: 999px; cursor: pointer;
+}
+.fold:focus-visible { outline: 3px solid var(--tomato); outline-offset: 2px; }
+.dock .pp, .dock .stop { font-size: 17px; padding: 7px 16px; }
+.dock .rep { font-size: 15px; padding: 5px 12px; border-width: 2px; }
+.dock-side { gap: 6px !important; min-width: 0 !important; }
+.now-title { font-size: 18px !important; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* 접기: 한 줄로 */
+.dock.mini .player { width: 56px; border-radius: 8px; }
+.dock.mini .now, .dock.mini .rep, .dock.mini .peek, .dock.mini .dock-note { display: none; }
+.dock.mini .dock-side { flex-direction: row; align-items: center; }
+.dock.mini .now-title { flex: 1; min-width: 0; font-size: 16px !important; -webkit-line-clamp: 1; }
+.dock.mini .dock-head { order: 3; }
+/* 화면 보기: 광고 건너뛰기 등 */
+.dock.screen .dock-in { flex-wrap: wrap; }
+.dock.screen .player { width: 356px; }
+@media (max-width: 480px) {
+  .player { width: 96px; }
+  .dock .pp, .dock .stop { font-size: 16px; padding: 6px 12px; }
+}
 
 .grown { border: 2px dashed var(--line); border-radius: 20px; padding: 14px 18px; }
 .grown summary { cursor: pointer; font-family: var(--font-display); font-size: 18px; color: var(--ink-soft); }
@@ -368,7 +391,10 @@ body.playing .wrap { padding-bottom: 300px; }
   <div class="dock-in">
     <div class="player" id="player"><div id="kidYT"></div><div class="cover paused" id="cover"></div></div>
     <div class="dock-side">
-      <span class="now">지금 듣는 중</span>
+      <div class="dock-head">
+        <span class="now">지금 듣는 중</span>
+        <button class="fold" id="fold" type="button" aria-expanded="true">▾ 작게</button>
+      </div>
       <span class="now-title" id="nowTitle"></span>
       <div class="dock-btns">
         <button class="pp" id="pp" type="button">잠깐 멈추기</button>
@@ -534,6 +560,8 @@ function songEnded() {
 // 화면은 그림으로 덮고 소리만. 광고 건너뛰기나 재생이 막혔을 땐 '화면 보기'로 열 수 있음
 function showScreen(on, note) {
   screenOn = on;
+  $("dock").classList.toggle("screen", on);
+  if (on) setMini(false);
   $("cover").hidden = on;
   $("peek").textContent = on ? "화면 가리기" : "화면 보기";
   $("dockNote").hidden = !note;
@@ -617,6 +645,23 @@ $("rep").addEventListener("click", () => {
   renderRepeat();
 });
 renderRepeat();
+// 아래 재생 창 접기/펴기 (이 기기에 기억)
+function setMini(m) {
+  $("dock").classList.toggle("mini", m);
+  $("fold").textContent = m ? "▴ 크게" : "▾ 작게";
+  $("fold").setAttribute("aria-expanded", String(!m));
+}
+$("fold").addEventListener("click", () => {
+  const m = !$("dock").classList.contains("mini");
+  if (m && screenOn) showScreen(false);
+  setMini(m);
+  store.set("kids-search-mini", m ? "1" : "0");
+});
+setMini(store.get("kids-search-mini") === "1");
+// 재생 창 높이만큼만 아래 여백을 둠
+if (window.ResizeObserver) {
+  new ResizeObserver(() => document.body.style.setProperty("--dockH", $("dock").offsetHeight + "px")).observe($("dock"));
+}
 function markPlaying() {
   document.querySelectorAll(".vid").forEach(b => b.classList.toggle("on", b.dataset.id === playingId));
 }
