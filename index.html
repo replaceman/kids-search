@@ -167,6 +167,12 @@ body.playing .wrap { padding-bottom: 300px; }
 .saved li { display: flex; gap: 12px; align-items: center; font-size: 15px; }
 .saved li .txt { flex: 1; min-width: 0; overflow-wrap: anywhere; display: flex; flex-direction: column; }
 .saved li .txt b { font-family: var(--font-display); font-weight: 400; font-size: 17px; }
+.saved .ttl { cursor: text; border-radius: 6px; align-self: flex-start; }
+.saved .ttl::after { content: " ✎"; font-size: 13px; color: var(--ink-soft); }
+.saved .ttl:hover { background: var(--sky); }
+.saved .ttl:focus-visible { outline: 3px solid var(--tomato); outline-offset: 2px; }
+.saved .ttlEdit { font: inherit; font-family: var(--font-display); font-size: 17px; padding: 4px 8px;
+  border-radius: 8px; border: 2px solid var(--tomato); background: var(--card); color: var(--ink); width: 100%; min-width: 0; }
 .saved small { color: var(--ink-soft); }
 .del {
   flex: none; border: 2px solid var(--line); background: var(--card); color: var(--ink-soft);
@@ -820,11 +826,45 @@ $("addBtn").addEventListener("click", async () => {
 function renderSaved() {
   $("saved").innerHTML = SONGS.length
     ? SONGS.map(v => `<li>${thumb(v, "sm")}
-        <span class="txt"><b>${esc(v.title)}</b><small>${esc([rangeText(v), v.keys].filter(Boolean).join(" · "))}</small></span>
+        <span class="txt"><b class="ttl" tabindex="0" role="button" data-id="${esc(vkey(v))}" title="눌러서 이름 고치기">${esc(v.title)}</b><small>${esc([rangeText(v), v.keys].filter(Boolean).join(" · "))}</small></span>
         <button type="button" class="del" data-id="${esc(vkey(v))}">빼기</button></li>`).join("")
     : `<li><small>아직 넣은 노래가 없어요.</small></li>`;
 }
+// 넣은 노래 이름을 눌러서 고치기
+function editTitle(b) {
+  const k = b.dataset.id;
+  const v = SONGS.find(x => vkey(x) === k); if (!v) return;
+  const inp = document.createElement("input");
+  inp.className = "ttlEdit"; inp.value = v.title; inp.maxLength = 80;
+  inp.setAttribute("aria-label", "노래 이름");
+  b.replaceWith(inp); inp.focus(); inp.select();
+  let done = false;
+  const finish = async save => {
+    if (done) return; done = true;
+    const title = inp.value.trim();
+    if (!save || !title || title === v.title) { renderSaved(); return; }
+    inp.disabled = true;
+    try {
+      await commit(list => list.map(x => vkey(x) === k ? { ...x, title } : x), `노래 이름 고치기: ${title}`);
+      $("savedMsg").className = "msg ok"; $("savedMsg").textContent = `‘${title}’(으)로 고쳤어요.`;
+    } catch (err) {
+      renderSaved();
+      $("savedMsg").className = "msg err"; $("savedMsg").textContent = errText(err);
+    }
+  };
+  inp.addEventListener("keydown", e => {
+    if (e.key === "Enter") { e.preventDefault(); finish(true); }
+    else if (e.key === "Escape") finish(false);
+  });
+  inp.addEventListener("blur", () => finish(true));
+}
+$("saved").addEventListener("keydown", e => {
+  const b = e.target.closest(".ttl");
+  if (b && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); editTitle(b); }
+});
 $("saved").addEventListener("click", async e => {
+  const tb = e.target.closest(".ttl");
+  if (tb) { editTitle(tb); return; }
   const b = e.target.closest(".del"); if (!b) return;
   if (!b.classList.contains("sure")) {
     $("saved").querySelectorAll(".del.sure").forEach(x => { x.classList.remove("sure"); x.textContent = "빼기"; });
