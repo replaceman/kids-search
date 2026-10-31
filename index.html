@@ -205,6 +205,12 @@ body.playing .wrap { padding-bottom: 300px; }
 .dual input[type=range]:focus-visible::-webkit-slider-thumb { outline: 3px solid var(--tomato); outline-offset: 2px; }
 .dual input.endH::-webkit-slider-thumb { background: var(--tomato); }
 .dual input.endH::-moz-range-thumb { background: var(--tomato); }
+.drop {
+  margin-top: 12px; padding: 18px; border: 3px dashed var(--line); border-radius: 18px;
+  text-align: center; color: var(--ink-soft); font-size: 15px; background: var(--card);
+}
+.drop b { display: block; font-family: var(--font-display); font-weight: 400; font-size: 18px; color: var(--ink); }
+.drop.over, body.dragging .drop { border-color: var(--tomato); background: var(--sky); }
 .or { margin: 16px 0 0; font-size: 14px; color: var(--ink-soft); }
 .or summary { cursor: pointer; font-family: var(--font-body); font-size: 14px; }
 .or .ysearch { margin-top: 8px; }
@@ -237,18 +243,40 @@ body.playing .wrap { padding-bottom: 300px; }
   <details class="grown" id="grown">
     <summary>어른용 · 노래 넣기와 정리</summary>
 
-    <p class="msg err" id="setupMsg" hidden></p>
-
-    <form id="pinForm" novalidate hidden>
-      <label for="pin">어른용 비밀번호
-        <input id="pin" type="password" autocomplete="off">
+    <h4>이 기기 연결</h4>
+    <p class="note">노래 목록은 모든 기기가 함께 써요. 넣고 빼려면 이 기기에 GitHub 토큰을 한 번 저장해 주세요.
+      <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">토큰 만들기</a>
+      (Repository access: kids-search 하나만, Permissions → Contents: Read and write)</p>
+    <form id="tokForm" novalidate>
+      <label for="tok">GitHub 토큰
+        <input id="tok" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_...">
       </label>
-      <button class="btn" type="submit">확인</button>
-      <p class="msg" id="pinMsg" aria-live="polite"></p>
+      <div class="row">
+        <button class="btn" type="submit">저장</button>
+        <button class="btn ghost" type="button" id="tokOff" hidden>토큰 지우기</button>
+        <span class="pill" id="tokState">연결 안 됨</span>
+      </div>
+      <p class="msg" id="tokMsg" aria-live="polite"></p>
+    </form>
+    <form id="keyForm" novalidate>
+      <label for="ykey">유튜브 API 키 (있으면 여기서 바로 검색돼요)
+        <input id="ykey" type="password" autocomplete="off" spellcheck="false" placeholder="AIza...">
+      </label>
+      <div class="row">
+        <button class="btn" type="submit">저장</button>
+        <button class="btn ghost" type="button" id="keyOff" hidden>키 지우기</button>
+        <span class="pill" id="keyState">키 없음</span>
+      </div>
+      <p class="msg" id="keyMsg" aria-live="polite"></p>
     </form>
 
     <div id="tools">
-      <h4>유튜브에서 찾아서 넣기</h4>
+      <h4>노래 찾아서 넣기</h4>
+      <div class="drop" id="drop" tabindex="0" aria-label="유튜브 링크를 끌어 놓거나 붙여 넣는 곳">
+        <b>여기로 끌어 놓기</b>
+        다른 탭의 유튜브 영상, 썸네일, 링크를 끌어 놓거나 이 칸을 누르고 붙여 넣기(Ctrl+V) 하세요.
+      </div>
+      <p class="msg" id="dropMsg" aria-live="polite"></p>
       <form class="ysearch" id="ysForm" novalidate>
         <input id="ys" type="search" autocomplete="off" placeholder="예: 핑크퐁 상어가족" aria-label="유튜브 검색어">
         <button class="btn" type="submit" id="ysBtn">검색</button>
@@ -256,13 +284,10 @@ body.playing .wrap { padding-bottom: 300px; }
       <p class="msg" id="ysMsg" aria-live="polite"></p>
       <ul class="yres" id="yres"></ul>
 
-      <details class="or">
-        <summary>유튜브 주소로 바로 넣기</summary>
-        <form class="ysearch" id="urlForm" novalidate>
-          <input id="vUrl" type="text" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="https://youtu.be/..." aria-label="유튜브 주소">
-          <button class="btn" type="submit">고르기</button>
-        </form>
-      </details>
+      <form class="ysearch" id="urlForm" novalidate>
+        <input id="vUrl" type="text" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="또는 유튜브 주소 붙여 넣기" aria-label="유튜브 주소">
+        <button class="btn" type="submit">고르기</button>
+      </form>
 
       <div class="ed" id="ed" hidden>
         <div class="edPlayer"><div id="edPlayer"></div></div>
@@ -321,10 +346,11 @@ body.playing .wrap { padding-bottom: 300px; }
 </div>
 
 <script>
-/* 구글 Apps Script 웹 앱 주소. 노래 목록 저장과 유튜브 검색을 맡아요 */
-const SCRIPT_URL = "";
-
-const PIN_KEY = "kids-search-pin";
+/* ---------- 함께 쓰는 노래 목록: 저장소의 songs.json ---------- */
+const REPO = "replaceman/kids-search";
+const API = `https://api.github.com/repos/${REPO}/contents/songs.json`;
+const TOKEN_KEY = "kids-search-token";
+const YKEY_KEY = "kids-search-ytkey";
 const CACHE_KEY = "kids-search-cache";
 const LEGACY_KEY = "kids-search-videos";
 const store = {
@@ -332,34 +358,57 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
   del(k) { try { localStorage.removeItem(k); } catch (e) {} },
 };
-let pin = store.get(PIN_KEY) || "";
+let token = store.get(TOKEN_KEY) || "";
+let ykey = store.get(YKEY_KEY) || "";
 let SONGS = [];
 try { SONGS = JSON.parse(store.get(CACHE_KEY) || "[]"); } catch (e) { SONGS = []; }
 const $ = id => document.getElementById(id);
 
-/* ---------- 서버 ---------- */
-async function apiGet(params) {
-  const r = await fetch(`${SCRIPT_URL}?${new URLSearchParams(params)}&t=${Date.now()}`);
+const b64ToText = b64 => new TextDecoder().decode(Uint8Array.from(atob(b64.replace(/\s/g, "")), c => c.charCodeAt(0)));
+const textToB64 = s => {
+  const bytes = new TextEncoder().encode(s);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+};
+const ghHeaders = () => {
+  const h = { "Accept": "application/vnd.github+json" };
+  if (token) h["Authorization"] = `Bearer ${token}`;
+  return h;
+};
+async function fetchRemote() {
+  const r = await fetch(`${API}?ref=main&t=${Date.now()}`, { headers: ghHeaders(), cache: "no-store" });
+  if (r.status === 404) return { list: [], sha: null };
+  if (!r.ok) throw new Error(String(r.status));
   const j = await r.json();
-  if (!j.ok) throw new Error(j.error || "ERR");
-  return j;
+  const list = JSON.parse(b64ToText(j.content) || "[]");
+  return { list: Array.isArray(list) ? list : [], sha: j.sha };
 }
-async function apiPost(body) {
-  // text/plain 으로 보내야 Apps Script가 막지 않아요
-  const r = await fetch(SCRIPT_URL, { method: "POST", body: JSON.stringify({ ...body, pin }) });
-  const j = await r.json();
-  if (j.songs) setSongs(j.songs);
-  if (!j.ok) throw new Error(j.error || "ERR");
-  return j;
+// 목록을 고쳐 저장소에 저장. 다른 기기가 먼저 고쳤으면 최신본에 다시 적용
+async function commit(change, message) {
+  if (!token) throw new Error("NO_TOKEN");
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const { list, sha } = await fetchRemote();
+    const next = change(list);
+    const body = { message, content: textToB64(JSON.stringify(next, null, 2) + "\n"), branch: "main" };
+    if (sha) body.sha = sha;
+    const r = await fetch(API, { method: "PUT", headers: { ...ghHeaders(), "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (r.ok) { setSongs(next); return; }
+    if (r.status === 409 || r.status === 422) continue;
+    throw new Error(String(r.status));
+  }
+  throw new Error("CONFLICT");
 }
 const errText = e => ({
-  PIN: "비밀번호가 맞지 않아요. 다시 입력해 주세요.",
+  NO_TOKEN: "이 기기에 GitHub 토큰이 없어요. 위 ‘이 기기 연결’에서 먼저 저장해 주세요.",
   DUP: "이미 넣은 노래예요(같은 구간).",
-  BAD_ID: "유튜브 영상을 알아보지 못했어요.",
-  NO_SERVER: "아직 서버가 연결되지 않았어요.",
-}[e.message] || (/YouTube/.test(e.message)
-  ? "유튜브 검색을 못 했어요. Apps Script에 ‘YouTube Data API v3’ 서비스가 추가됐는지 확인해 주세요."
-  : "연결이 잠시 안 돼요. 인터넷을 확인하고 다시 눌러 주세요."));
+  CONFLICT: "다른 기기에서 동시에 고치는 중이었어요. 잠시 뒤 다시 눌러 주세요.",
+  401: "토큰이 맞지 않거나 만료됐어요. 새로 만들어 저장해 주세요.",
+  403: "토큰에 쓰기 권한이 없어요. Contents를 Read and write로 만들어 주세요.",
+  404: "토큰이 kids-search 저장소에 접근하지 못해요. Repository access에 kids-search를 넣어 주세요.",
+  YT_KEY: "유튜브 API 키가 맞지 않거나 YouTube Data API v3가 켜져 있지 않아요.",
+  YT_QUOTA: "오늘 유튜브 검색 한도를 다 썼어요. 내일 다시 하거나 주소를 붙여 넣어 주세요.",
+}[e.message] || `잘 안 됐어요 (${e.message}). 인터넷을 확인하고 다시 눌러 주세요.`);
 
 function setSongs(list) {
   SONGS = Array.isArray(list) ? list : [];
@@ -367,16 +416,13 @@ function setSongs(list) {
   render(); renderSaved(); renderLegacy();
 }
 async function loadSongs() {
-  if (SCRIPT_URL) {
-    try { setSongs((await apiGet({})).songs); return; } catch (e) {}
-  } else {
-    try {
-      const r = await fetch(`./songs.json?t=${Date.now()}`, { cache: "no-store" });
-      if (r.ok) setSongs(await r.json());
-    } catch (e) {}
-  }
+  try { setSongs((await fetchRemote()).list); return; } catch (e) {}
+  // API가 막히면 사이트에 같이 올라간 파일을 읽음 (반영이 1~2분 늦을 수 있음)
+  try {
+    const r = await fetch(`./songs.json?t=${Date.now()}`, { cache: "no-store" });
+    if (r.ok) setSongs(await r.json());
+  } catch (e) {}
 }
-
 /* ---------- 검색 (아이 화면) ---------- */
 const CHO = ["ㄱ","ㄲ","ㄴ","ㄷ","ㄸ","ㄹ","ㅁ","ㅂ","ㅃ","ㅅ","ㅆ","ㅇ","ㅈ","ㅉ","ㅊ","ㅋ","ㅌ","ㅍ","ㅎ"];
 const COLORS = ["#ffc93c","#8fd3f4","#ffb3a1","#a8e6c4","#ffd98a","#c3d8ff"];
@@ -495,37 +541,67 @@ $("results").addEventListener("click", e => {
 $("f").addEventListener("submit", e => { e.preventDefault(); render(); });
 $q.addEventListener("input", render);
 
-/* ---------- 어른용: 비밀번호 ---------- */
-async function setupGrown() {
-  if (!SCRIPT_URL) {
-    $("setupMsg").hidden = false;
-    $("setupMsg").textContent = "아직 노래를 저장할 서버(Apps Script)가 연결되지 않았어요. 지금은 볼 수만 있어요.";
-    $("tools").hidden = true;
-    return;
-  }
-  try {
-    const j = await apiGet({ action: "check", pin });
-    const need = j.needPin && !j.valid;
-    $("pinForm").hidden = !need;
-    $("tools").hidden = need;
-  } catch (e) {
-    $("setupMsg").hidden = false; $("setupMsg").textContent = errText(e);
-  }
+/* ---------- 어른용: 이 기기 연결 ---------- */
+function renderConn() {
+  $("tokState").textContent = token ? "연결됨" : "연결 안 됨";
+  $("tokState").classList.toggle("on", !!token);
+  $("tokOff").hidden = !token;
+  $("keyState").textContent = ykey ? "키 있음" : "키 없음";
+  $("keyState").classList.toggle("on", !!ykey);
+  $("keyOff").hidden = !ykey;
+  $("ys").placeholder = ykey ? "예: 핑크퐁 상어가족" : "검색어를 적으면 유튜브가 새 탭으로 열려요";
 }
-$("pinForm").addEventListener("submit", async e => {
+$("tokForm").addEventListener("submit", async e => {
   e.preventDefault();
-  const val = $("pin").value;
+  const $m = $("tokMsg"), val = $("tok").value.trim();
+  $m.className = "msg";
+  if (!val) { $m.classList.add("err"); $m.textContent = "토큰을 붙여 넣어 주세요."; return; }
+  const prev = token; token = val;
   try {
-    const j = await apiGet({ action: "check", pin: val });
-    if (!j.valid) throw new Error("PIN");
-    pin = val; store.set(PIN_KEY, pin);
-    $("pinForm").hidden = true; $("tools").hidden = false;
+    const r = await fetch(`https://api.github.com/repos/${REPO}`, { headers: ghHeaders() });
+    if (!r.ok) throw new Error(String(r.status));
+    const j = await r.json();
+    if (j.permissions && !j.permissions.push) throw new Error("403");
+    store.set(TOKEN_KEY, token); e.target.reset();
+    $m.classList.add("ok"); $m.textContent = "연결했어요. 이 기기에서 노래를 넣고 뺄 수 있어요.";
   } catch (err) {
-    $("pinMsg").className = "msg err"; $("pinMsg").textContent = errText(err);
+    token = prev; $m.classList.add("err"); $m.textContent = errText(err);
   }
+  renderConn();
 });
+$("tokOff").addEventListener("click", () => { token = ""; store.del(TOKEN_KEY); renderConn(); });
+
+async function ytApi(path, params) {
+  const r = await fetch(`https://www.googleapis.com/youtube/v3/${path}?${new URLSearchParams({ ...params, key: ykey })}`);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const reason = j.error && j.error.errors && j.error.errors[0] && j.error.errors[0].reason || "";
+    throw new Error(/quota/i.test(reason) ? "YT_QUOTA" : "YT_KEY");
+  }
+  return j;
+}
+$("keyForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const $m = $("keyMsg"), val = $("ykey").value.trim();
+  $m.className = "msg";
+  if (!val) { $m.classList.add("err"); $m.textContent = "키를 붙여 넣어 주세요."; return; }
+  const prev = ykey; ykey = val;
+  try {
+    await ytApi("search", { part: "id", q: "동요", maxResults: 1, type: "video" });
+    store.set(YKEY_KEY, ykey); e.target.reset();
+    $m.classList.add("ok"); $m.textContent = "저장했어요. 이제 여기서 바로 유튜브를 찾을 수 있어요.";
+  } catch (err) {
+    ykey = prev; $m.classList.add("err"); $m.textContent = errText(err);
+  }
+  renderConn();
+});
+$("keyOff").addEventListener("click", () => { ykey = ""; store.del(YKEY_KEY); renderConn(); });
 
 /* ---------- 어른용: 유튜브 검색 ---------- */
+const isoSec = s => {
+  const m = String(s).match(/P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+  return m ? (+m[1] || 0) * 86400 + (+m[2] || 0) * 3600 + (+m[3] || 0) * 60 + (+m[4] || 0) : 0;
+};
 let found = [];
 $("ysForm").addEventListener("submit", async e => {
   e.preventDefault();
@@ -533,9 +609,26 @@ $("ysForm").addEventListener("submit", async e => {
   const $m = $("ysMsg");
   $m.className = "msg";
   if (!q) { $m.classList.add("err"); $m.textContent = "찾을 노래 이름을 적어 주세요."; return; }
+  if (!ykey) {
+    // 키가 없으면 유튜브를 새 탭으로 열고, 주소를 복사해 아래에 붙여 넣게 함
+    window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`, "_blank", "noopener");
+    $m.textContent = "유튜브가 새 탭으로 열렸어요. 영상에서 ‘공유 → 복사’ 후 아래 칸에 붙여 넣어 주세요.";
+    $("vUrl").focus();
+    return;
+  }
   $("ysBtn").disabled = true; $m.textContent = "찾는 중…"; $("yres").innerHTML = "";
   try {
-    found = (await apiGet({ action: "search", q })).items.map(i => ({ ...i, title: decode(i.title), channel: decode(i.channel) }));
+    const s = await ytApi("search", {
+      part: "snippet", q, type: "video", maxResults: 12, safeSearch: "strict",
+      regionCode: "KR", relevanceLanguage: "ko", videoEmbeddable: "true",
+    });
+    const items = s.items || [];
+    const dur = {};
+    if (items.length) {
+      const d = await ytApi("videos", { part: "contentDetails", id: items.map(i => i.id.videoId).join(",") });
+      (d.items || []).forEach(v => { dur[v.id] = isoSec(v.contentDetails.duration); });
+    }
+    found = items.map(i => ({ id: i.id.videoId, title: decode(i.snippet.title), channel: decode(i.snippet.channelTitle), duration: dur[i.id.videoId] || 0 }));
     $m.textContent = found.length ? "" : "검색 결과가 없어요. 다른 말로 찾아 주세요.";
     $("yres").innerHTML = found.map((v, i) => `<li>${thumb(v, "sm")}
       <span class="txt"><b>${esc(v.title)}</b><small>${esc(v.channel)}${v.duration ? " · " + fmt(v.duration) : ""}</small></span>
@@ -646,7 +739,11 @@ $("addBtn").addEventListener("click", async () => {
   const title = $("vTitle").value.trim() || `내 노래 ${SONGS.length + 1}`;
   $("addBtn").disabled = true; $m.className = "msg"; $m.textContent = "넣는 중…";
   try {
-    await apiPost({ action: "add", song: { id: cur.id, title, keys: $("vKeys").value.trim(), start, end } });
+    const keys = $("vKeys").value.trim(), id = cur.id, key = `${id}-${start}-${end}`;
+    await commit(list => {
+      if (list.some(v => vkey(v) === key)) throw new Error("DUP");
+      return [...list, { id, title, keys, start, end, key }];
+    }, `노래 넣기: ${title}`);
     if (edPlayer && edPlayer.stopVideo) edPlayer.stopVideo();
     $m.className = "msg ok"; $m.textContent = `‘${title}’을(를) 넣었어요. 다른 기기에서도 바로 보여요.`;
     setTimeout(() => { $("ed").hidden = true; cur = null; }, 1500);
@@ -675,7 +772,8 @@ $("saved").addEventListener("click", async e => {
   b.disabled = true; b.textContent = "빼는 중…";
   try {
     if (playingId === k) stop();
-    await apiPost({ action: "delete", key: k });
+    const v = SONGS.find(x => vkey(x) === k);
+    await commit(list => list.filter(x => vkey(x) !== k), `노래 빼기: ${v ? v.title : k}`);
     $("savedMsg").textContent = "";
   } catch (err) {
     b.disabled = false; b.classList.remove("sure"); b.textContent = "빼기";
@@ -688,12 +786,11 @@ let oldShared = [];
 function legacyCandidates() {
   let local = [];
   try { local = JSON.parse(store.get(LEGACY_KEY) || "[]"); } catch (e) {}
-  const all = [...local, ...oldShared];
+  const all = local;
   const seen = new Set(SONGS.map(vkey));
   return all.filter(v => { const k = vkey(v); if (seen.has(k)) return false; seen.add(k); return true; });
 }
 function renderLegacy() {
-  if (!SCRIPT_URL) { $("legacyBox").hidden = true; return; }
   const c = legacyCandidates();
   $("legacyBox").hidden = !c.length;
   $("legacyNote").textContent = `예전 방식으로 넣어 둔 노래가 ${c.length}곡 있어요: ${c.map(v => v.title).join(", ")}`;
@@ -702,7 +799,10 @@ $("legacyMove").addEventListener("click", async e => {
   const c = legacyCandidates(); if (!c.length) return;
   e.target.disabled = true;
   try {
-    await apiPost({ action: "addMany", songs: c.map(v => ({ id: v.id, title: v.title, keys: v.keys || "", start: v.start || 0, end: v.end || 0 })) });
+    await commit(list => {
+      const have = new Set(list.map(vkey));
+      return [...list, ...c.filter(v => !have.has(vkey(v))).map(v => ({ id: v.id, title: v.title, keys: v.keys || "", start: v.start || 0, end: v.end || 0, key: vkey(v) }))];
+    }, `예전 노래 ${c.length}곡 옮기기`);
     store.del(LEGACY_KEY); oldShared = [];
     renderLegacy();
   } catch (err) {
@@ -710,14 +810,57 @@ $("legacyMove").addEventListener("click", async e => {
   } finally { e.target.disabled = false; }
 });
 
+
+/* ---------- 어른용: 다른 탭에서 끌어 놓기 / 붙여 넣기 ---------- */
+function linkFrom(dt) {
+  const out = [];
+  const uri = dt.getData("text/uri-list");
+  if (uri) out.push(...uri.split(/\r?\n/).filter(l => l && !l.startsWith("#")));
+  const html = dt.getData("text/html");
+  let label = "";
+  if (html) {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    doc.querySelectorAll("a[href]").forEach(a => { out.push(a.href); if (!label) label = a.textContent.trim(); });
+  }
+  const txt = dt.getData("text/plain");
+  if (txt) out.push(txt);
+  for (const s of out) { const id = ytId(s); if (id) return { id, label }; }
+  return { id: "", first: out[0] || "" };
+}
+function takeLink(dt) {
+  const $m = $("dropMsg");
+  const { id, label, first } = linkFrom(dt);
+  $m.className = "msg";
+  if (!id) {
+    $m.classList.add("err");
+    $m.textContent = first
+      ? "지금은 유튜브 영상만 넣을 수 있어요. 끌어 놓은 링크가 유튜브 영상이 아니에요."
+      : "링크를 찾지 못했어요. 영상 제목이나 썸네일을 끌어 놓아 보세요.";
+    return;
+  }
+  $m.textContent = "";
+  $("grown").open = true;
+  openEditor({ id, title: label && !/^https?:/i.test(label) ? label.slice(0, 80) : "", duration: 0 });
+}
+const $drop = $("drop");
+let dragDepth = 0;
+// 페이지 아무 데나 링크를 떨어뜨려도 다른 사이트로 넘어가지 않고 여기로 받기
+window.addEventListener("dragenter", e => { dragDepth++; document.body.classList.add("dragging"); });
+window.addEventListener("dragleave", () => { if (--dragDepth <= 0) { dragDepth = 0; document.body.classList.remove("dragging"); } });
+window.addEventListener("dragover", e => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; });
+window.addEventListener("drop", e => {
+  e.preventDefault(); dragDepth = 0; document.body.classList.remove("dragging");
+  takeLink(e.dataTransfer);
+});
+$drop.addEventListener("paste", e => { e.preventDefault(); takeLink(e.clipboardData); });
+$("vUrl").addEventListener("paste", e => {
+  const { id } = linkFrom(e.clipboardData);
+  if (id) { e.preventDefault(); $("vUrl").value = ""; takeLink(e.clipboardData); }
+});
+
 render(); renderSaved();
 loadSongs();
-setupGrown();
-if (SCRIPT_URL) {
-  // 토큰 방식 때 저장소 파일에 넣어 둔 노래도 옮길 수 있게
-  fetch(`./songs.json?t=${Date.now()}`, { cache: "no-store" })
-    .then(r => r.ok ? r.json() : []).then(j => { oldShared = Array.isArray(j) ? j : []; renderLegacy(); }).catch(() => {});
-}
+renderConn();
 </script>
 </body>
 </html>
