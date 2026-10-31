@@ -261,12 +261,6 @@ body.playing .wrap { padding-bottom: calc(var(--dockH, 160px) + 24px); }
 .dual input[type=range]:focus-visible::-webkit-slider-thumb { outline: 3px solid var(--tomato); outline-offset: 2px; }
 .dual input.endH::-webkit-slider-thumb { background: var(--tomato); }
 .dual input.endH::-moz-range-thumb { background: var(--tomato); }
-.drop {
-  margin-top: 12px; padding: 18px; border: 3px dashed var(--line); border-radius: 18px;
-  text-align: center; color: var(--ink-soft); font-size: 15px; background: var(--card);
-}
-.drop b { display: block; font-family: var(--font-display); font-weight: 400; font-size: 18px; color: var(--ink); }
-.drop.over, body.dragging .drop { border-color: var(--tomato); background: var(--sky); }
 .or { margin: 16px 0 0; font-size: 14px; color: var(--ink-soft); }
 .or summary { cursor: pointer; font-family: var(--font-body); font-size: 14px; }
 .or .ysearch { margin-top: 8px; }
@@ -308,20 +302,17 @@ body.playing .wrap { padding-bottom: calc(var(--dockH, 160px) + 24px); }
       </form>
       <p class="msg" id="ysMsg" aria-live="polite"></p>
       <ul class="yres" id="yres"></ul>
-      <p class="note">또는 다른 탭의 영상을 끌어 놓거나 주소를 붙여 넣어도 돼요.</p>
-      <div class="drop" id="drop" tabindex="0" aria-label="유튜브 링크를 끌어 놓거나 붙여 넣는 곳">
-        <b>여기로 끌어 놓기</b>
-        다른 탭의 유튜브 영상, 썸네일, 링크를 끌어 놓거나 이 칸을 누르고 붙여 넣기(Ctrl+V) 하세요.
-      </div>
-      <p class="msg" id="dropMsg" aria-live="polite"></p>
-
+      <h4>주소로 넣기</h4>
+      <p class="note">유튜브 주소나, 영상·소리 파일 주소(.mp4 .mp3 .m4a 등)를 붙여 넣으세요.</p>
       <form class="ysearch" id="urlForm" novalidate>
-        <input id="vUrl" type="text" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="또는 유튜브 주소 붙여 넣기" aria-label="유튜브 주소">
+        <input id="vUrl" type="url" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="https://…/노래.mp4 또는 유튜브 주소" aria-label="영상 주소">
         <button class="btn" type="submit">고르기</button>
       </form>
+      <p class="msg" id="urlMsg" aria-live="polite"></p>
 
       <div class="ed" id="ed" hidden>
-        <div class="edPlayer"><div id="edPlayer"></div></div>
+        <div class="edPlayer" id="edYTBox"><div id="edPlayer"></div></div>
+        <audio id="edAudio" controls preload="metadata" playsinline hidden style="width:100%"></audio>
         <label for="vTitle">아이에게 보일 이름
           <input id="vTitle" type="text">
         </label>
@@ -406,6 +397,8 @@ body.playing .wrap { padding-bottom: calc(var(--dockH, 160px) + 24px); }
     </div>
   </div>
 </div>
+
+<audio id="kidAudio" preload="none" playsinline></audio>
 
 <script>
 /* ---------- 함께 쓰는 노래 목록: 저장소의 songs.json ---------- */
@@ -543,6 +536,22 @@ function ytId(url) {
   } catch (e) { return ""; }
 }
 
+/* ---------- 영상·소리 파일 주소 ---------- */
+const MEDIA_RE = /\.(mp4|m4v|m4a|mp3|m3u8|webm|ogg|oga|aac|wav)$/i;
+function mediaUrl(s) {
+  try {
+    const m = String(s).match(/https?:\/\/[^\s"'<>]+/i);
+    if (!m) return "";
+    const u = new URL(m[0]);
+    return MEDIA_RE.test(u.pathname) ? u.href : "";
+  } catch (e) { return ""; }
+}
+const fileName = src => {
+  try { return decodeURIComponent(new URL(src).pathname.split("/").pop()).replace(MEDIA_RE, ""); } catch (e) { return ""; }
+};
+const hashStr = s => { let h = 5381; for (const c of s) h = ((h << 5) + h + c.charCodeAt(0)) >>> 0; return h.toString(36); };
+const isFile = v => !!(v && v.type === "file");
+
 /* ---------- 아이 화면 재생 ---------- */
 let playingId = "", kidPlayer = null, kidReady = false, pending = null, startTimer = 0, screenOn = false;
 let curSong = null;
@@ -580,7 +589,7 @@ function makeKidPlayer() {
     events: {
       onReady: () => { kidReady = true; if (pending) { const v = pending; pending = null; startSong(v); } },
       onStateChange: e => {
-        if (!playingId) return;
+        if (!playingId || isFile(curSong)) return;
         if (e.data === YT.PlayerState.PLAYING) {
           setPaused(false);
           if (screenOn && $("dockNote").textContent) showScreen(false);
@@ -594,7 +603,47 @@ function makeKidPlayer() {
     },
   });
 }
+const kidAudio = $("kidAudio");
+function startFile(v) {
+  if (kidAudio.dataset.src !== v.src) {
+    kidAudio.dataset.src = v.src;
+    kidAudio.src = v.src + (v.start ? `#t=${v.start}` : "");
+  } else {
+    try { kidAudio.currentTime = v.start || 0; } catch (e) {}
+  }
+  $("dockNote").hidden = true;
+  const pr = kidAudio.play();
+  if (pr && pr.catch) pr.catch(() => {
+    if (curSong !== v) return;
+    setPaused(true);
+    $("dockNote").hidden = false;
+    $("dockNote").textContent = "자동으로 시작이 안 됐어요. ‘다시 듣기’를 눌러 주세요.";
+  });
+}
+kidAudio.addEventListener("timeupdate", () => {
+  if (isFile(curSong) && curSong.end && kidAudio.currentTime >= curSong.end) songEnded();
+});
+kidAudio.addEventListener("ended", () => { if (isFile(curSong)) songEnded(); });
+kidAudio.addEventListener("playing", () => { if (isFile(curSong)) { setPaused(false); $("dockNote").hidden = true; } });
+kidAudio.addEventListener("pause", () => { if (isFile(curSong) && !kidAudio.ended) setPaused(true); });
+kidAudio.addEventListener("error", () => {
+  if (!isFile(curSong) || !kidAudio.getAttribute("src")) return;
+  setPaused(true);
+  $("dockNote").hidden = false;
+  $("dockNote").textContent = "이 노래 파일을 불러오지 못했어요. 그 사이트가 다른 곳에서 재생하는 걸 막았을 수 있어요.";
+});
+function stopFile() {
+  kidAudio.pause();
+  if (kidAudio.getAttribute("src")) { kidAudio.removeAttribute("src"); kidAudio.load(); }
+  delete kidAudio.dataset.src;
+}
 function startSong(v) {
+  if (isFile(v)) {
+    if (kidReady) { try { kidPlayer.pauseVideo(); } catch (e) {} }
+    startFile(v);
+    return;
+  }
+  stopFile();
   const opts = { videoId: v.id, startSeconds: v.start || 0 };
   if (v.end) opts.endSeconds = v.end;
   try { kidPlayer.unMute(); } catch (e) {}
@@ -612,7 +661,9 @@ function play(v) {
   $("dock").setAttribute("aria-hidden", "false");
   document.body.classList.add("playing");
   showScreen(false); setPaused(false);
+  $("peek").hidden = isFile(v);
   markPlaying();
+  if (isFile(v)) { startSong(v); return; }   // 파일은 바로 재생
   if (kidReady) startSong(v);       // 누른 그 순간에 바로 재생
   else { pending = v; loadYT().then(() => { if (!kidPlayer) makeKidPlayer(); }); }
   // 그래도 막히면 화면을 열어 ▶를 한 번 누르게 함 (그 뒤로는 바로 재생돼요)
@@ -629,15 +680,21 @@ function stop() {
   curSong = null;
   pending = null;
   if (kidReady) { try { kidPlayer.stopVideo(); } catch (e) {} }
+  stopFile();
   playingId = "";
   $("dock").classList.add("off");
   $("dock").setAttribute("aria-hidden", "true");
   document.body.classList.remove("playing"); markPlaying();
 }
 $("pp").addEventListener("click", () => {
+  if (isFile(curSong)) { kidAudio.paused ? startFileResume() : kidAudio.pause(); return; }
   if (!kidPlayer || !kidPlayer.getPlayerState) return;
   kidPlayer.getPlayerState() === YT.PlayerState.PLAYING ? kidPlayer.pauseVideo() : kidPlayer.playVideo();
 });
+function startFileResume() {
+  const pr = kidAudio.play();
+  if (pr && pr.catch) pr.catch(() => {});
+}
 $("peek").addEventListener("click", () => showScreen(!screenOn));
 $("rep").addEventListener("click", () => {
   repeatOn = !repeatOn;
@@ -669,10 +726,11 @@ $("stop").addEventListener("click", stop);
 
 const PLAY_ICON = `<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="#233a4a"/></svg>`;
 function thumb(v, cls = "", inner = "") {
-  const n = [...v.id].reduce((a, c) => a + c.charCodeAt(0), 0);
+  const seed = v.id || v.src || v.title || "";
+  const n = [...seed].reduce((a, c) => a + c.charCodeAt(0), 0);
   return `<span class="thumb ${cls}" style="--ph:${COLORS[n % COLORS.length]}">
-    <span class="ph" aria-hidden="true">${esc([...v.title][0] || "♪")}</span>
-    <img src="https://i.ytimg.com/vi/${v.id}/mqdefault.jpg" alt="" loading="lazy" onerror="this.remove()">
+    <span class="ph" aria-hidden="true">${esc([...(v.title || "")][0] || "♪")}</span>
+    ${v.id ? `<img src="https://i.ytimg.com/vi/${v.id}/mqdefault.jpg" alt="" loading="lazy" onerror="this.remove()">` : ""}
     ${inner}
   </span>`;
 }
@@ -789,9 +847,19 @@ $("yres").addEventListener("click", e => {
 });
 $("urlForm").addEventListener("submit", e => {
   e.preventDefault();
-  const id = ytId($("vUrl").value);
-  if (!id) { $("ysMsg").className = "msg err"; $("ysMsg").textContent = "유튜브 영상 주소가 아니에요."; return; }
-  openEditor({ id, title: "", duration: 0 });
+  const raw = $("vUrl").value.trim();
+  const $m = $("urlMsg");
+  $m.className = "msg";
+  $m.textContent = "";
+  if (!raw) { $m.classList.add("err"); $m.textContent = "주소를 붙여 넣어 주세요."; return; }
+  const id = ytId(raw);
+  if (id) { openEditor({ id, title: "", duration: 0 }); return; }
+  const src = mediaUrl(raw);
+  if (src) { openEditor({ type: "file", src, title: fileName(src), duration: 0 }); return; }
+  $m.classList.add("err");
+  $m.textContent = /\.html?($|[?#])/i.test(raw)
+    ? "이건 영상이 들어 있는 ‘페이지’ 주소예요. 그 페이지 안의 영상 파일 주소(.mp4 등으로 끝나는 주소)가 필요해요."
+    : "유튜브 주소도, 영상·소리 파일 주소도 아니에요. .mp4 .mp3 처럼 끝나는 주소인지 확인해 주세요.";
 });
 
 /* ---------- 어른용: 미리 듣기 + 구간 끌어서 정하기 ---------- */
@@ -823,7 +891,27 @@ function paintRange() {
   // 겹쳤을 때 뒤에 있는 손잡이를 잡을 수 있게
   rS.style.zIndex = a > max - 2 ? 3 : 2;
 }
-function seek(t) { if (edPlayer && edPlayer.seekTo) edPlayer.seekTo(t, true); }
+const edAudio = $("edAudio");
+let edStopAt = 0;
+function seek(t) {
+  if (isFile(cur)) { try { edAudio.currentTime = t; } catch (e) {} }
+  else if (edPlayer && edPlayer.seekTo) edPlayer.seekTo(t, true);
+}
+function edTime() {
+  if (isFile(cur)) return edAudio.currentTime || 0;
+  return edPlayer && edPlayer.getCurrentTime ? edPlayer.getCurrentTime() : 0;
+}
+edAudio.addEventListener("timeupdate", () => {
+  if (edStopAt && edAudio.currentTime >= edStopAt) { edAudio.pause(); edStopAt = 0; }
+});
+edAudio.addEventListener("loadedmetadata", () => {
+  if (isFile(cur) && isFinite(edAudio.duration)) { rE.value = 0; setMax(edAudio.duration); }
+});
+edAudio.addEventListener("error", () => {
+  if (!isFile(cur) || !edAudio.getAttribute("src")) return;
+  $("addMsg").className = "msg err";
+  $("addMsg").textContent = "이 파일을 불러오지 못했어요. 주소가 맞는지, 그 사이트가 다른 곳에서 재생하는 걸 막아 두었는지 확인해 주세요. 넣을 수는 있지만 아이 화면에서도 안 나올 수 있어요.";
+});
 rS.addEventListener("input", () => { if (+rS.value > +rE.value - 1) rS.value = +rE.value - 1; paintRange(); seek(+rS.value); });
 rE.addEventListener("input", () => { if (+rE.value < +rS.value + 1) rE.value = +rS.value + 1; paintRange(); seek(Math.max(+rS.value, +rE.value - 3)); });
 
@@ -836,6 +924,16 @@ async function openEditor(v) {
   rS.max = rE.max = 100; rS.value = 0; rE.value = 0;
   setMax(v.duration || 100);
   $("ed").scrollIntoView({ behavior: "smooth", block: "start" });
+  edStopAt = 0;
+  if (isFile(v)) {
+    if (edPlayer && edPlayer.stopVideo) { try { edPlayer.stopVideo(); } catch (e) {} }
+    $("edYTBox").hidden = true;
+    edAudio.hidden = false;
+    edAudio.src = v.src;
+    edAudio.load();
+    return;
+  }
+  edAudio.pause(); edAudio.hidden = true; $("edYTBox").hidden = false;
   await loadYT();
   const onReady = () => {
     const d = edPlayer.getDuration && edPlayer.getDuration();
@@ -861,19 +959,26 @@ async function openEditor(v) {
   }
 }
 $("hearRange").addEventListener("click", () => {
+  if (isFile(cur)) {
+    try { edAudio.currentTime = +rS.value; } catch (e) {}
+    edStopAt = +rE.value;
+    const pr = edAudio.play(); if (pr && pr.catch) pr.catch(() => {});
+    return;
+  }
   if (!edPlayer || !cur) return;
   edPlayer.loadVideoById({ videoId: cur.id, startSeconds: +rS.value, endSeconds: +rE.value });
 });
 $("nowStart").addEventListener("click", () => {
-  if (!edPlayer) return;
-  rS.value = Math.min(Math.floor(edPlayer.getCurrentTime()), +rE.value - 1); paintRange();
+  if (!cur) return;
+  rS.value = Math.min(Math.floor(edTime()), +rE.value - 1); paintRange();
 });
 $("nowEnd").addEventListener("click", () => {
-  if (!edPlayer) return;
-  rE.value = Math.max(Math.ceil(edPlayer.getCurrentTime()), +rS.value + 1); paintRange();
+  if (!cur) return;
+  rE.value = Math.max(Math.ceil(edTime()), +rS.value + 1); paintRange();
 });
 $("edCancel").addEventListener("click", () => {
   if (edPlayer && edPlayer.stopVideo) edPlayer.stopVideo();
+  edAudio.pause();
   $("ed").hidden = true; cur = null;
 });
 $("addBtn").addEventListener("click", async () => {
@@ -885,12 +990,16 @@ $("addBtn").addEventListener("click", async () => {
   const title = $("vTitle").value.trim() || `내 노래 ${SONGS.length + 1}`;
   $("addBtn").disabled = true; $m.className = "msg"; $m.textContent = "넣는 중…";
   try {
-    const keys = $("vKeys").value.trim(), id = cur.id, key = `${id}-${start}-${end}`;
+    const keys = $("vKeys").value.trim();
+    const song = isFile(cur)
+      ? { type: "file", src: cur.src, title, keys, start, end, key: `f${hashStr(cur.src)}-${start}-${end}` }
+      : { id: cur.id, title, keys, start, end, key: `${cur.id}-${start}-${end}` };
     await commit(list => {
-      if (list.some(v => vkey(v) === key)) throw new Error("DUP");
-      return [...list, { id, title, keys, start, end, key }];
+      if (list.some(v => vkey(v) === song.key)) throw new Error("DUP");
+      return [...list, song];
     }, `노래 넣기: ${title}`);
     if (edPlayer && edPlayer.stopVideo) edPlayer.stopVideo();
+    edAudio.pause();
     $m.className = "msg ok"; $m.textContent = `‘${title}’을(를) 넣었어요. 다른 기기에서도 바로 보여요.`;
     setTimeout(() => { $("ed").hidden = true; cur = null; }, 1500);
   } catch (err) {
@@ -991,52 +1100,6 @@ $("legacyMove").addEventListener("click", async e => {
 });
 
 
-/* ---------- 어른용: 다른 탭에서 끌어 놓기 / 붙여 넣기 ---------- */
-function linkFrom(dt) {
-  const out = [];
-  const uri = dt.getData("text/uri-list");
-  if (uri) out.push(...uri.split(/\r?\n/).filter(l => l && !l.startsWith("#")));
-  const html = dt.getData("text/html");
-  let label = "";
-  if (html) {
-    const doc = new DOMParser().parseFromString(html, "text/html");
-    doc.querySelectorAll("a[href]").forEach(a => { out.push(a.href); if (!label) label = a.textContent.trim(); });
-  }
-  const txt = dt.getData("text/plain");
-  if (txt) out.push(txt);
-  for (const s of out) { const id = ytId(s); if (id) return { id, label }; }
-  return { id: "", first: out[0] || "" };
-}
-function takeLink(dt) {
-  const $m = $("dropMsg");
-  const { id, label, first } = linkFrom(dt);
-  $m.className = "msg";
-  if (!id) {
-    $m.classList.add("err");
-    $m.textContent = first
-      ? "지금은 유튜브 영상만 넣을 수 있어요. 끌어 놓은 링크가 유튜브 영상이 아니에요."
-      : "링크를 찾지 못했어요. 영상 제목이나 썸네일을 끌어 놓아 보세요.";
-    return;
-  }
-  $m.textContent = "";
-  $("grown").open = true;
-  openEditor({ id, title: label && !/^https?:/i.test(label) ? label.slice(0, 80) : "", duration: 0 });
-}
-const $drop = $("drop");
-let dragDepth = 0;
-// 페이지 아무 데나 링크를 떨어뜨려도 다른 사이트로 넘어가지 않고 여기로 받기
-window.addEventListener("dragenter", e => { dragDepth++; document.body.classList.add("dragging"); });
-window.addEventListener("dragleave", () => { if (--dragDepth <= 0) { dragDepth = 0; document.body.classList.remove("dragging"); } });
-window.addEventListener("dragover", e => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; });
-window.addEventListener("drop", e => {
-  e.preventDefault(); dragDepth = 0; document.body.classList.remove("dragging");
-  takeLink(e.dataTransfer);
-});
-$drop.addEventListener("paste", e => { e.preventDefault(); takeLink(e.clipboardData); });
-$("vUrl").addEventListener("paste", e => {
-  const { id } = linkFrom(e.clipboardData);
-  if (id) { e.preventDefault(); $("vUrl").value = ""; takeLink(e.clipboardData); }
-});
 
 render(); renderSaved();
 loadSongs();
