@@ -125,6 +125,12 @@ mark { background: var(--sun); color: #233a4a; border-radius: 4px; padding: 0 2p
   border: 0; cursor: pointer; background: var(--sun); color: #233a4a;
   font-family: var(--font-display); font-size: 20px; padding: 10px 22px; border-radius: 999px;
 }
+.rep {
+  border: 3px solid var(--ink); background: var(--card); color: var(--ink); cursor: pointer;
+  font-family: var(--font-display); font-size: 18px; padding: 7px 18px; border-radius: 999px;
+}
+.rep[aria-pressed="true"] { background: var(--leaf); border-color: var(--leaf); color: #fff; }
+.rep:focus-visible { outline: 3px solid var(--tomato); outline-offset: 3px; }
 .peek { border: 2px solid var(--line); background: var(--card); color: var(--ink-soft); cursor: pointer;
   font: inherit; font-size: 13px; padding: 4px 12px; border-radius: 999px; align-self: flex-start; }
 .pp:focus-visible, .peek:focus-visible { outline: 3px solid var(--tomato); outline-offset: 3px; }
@@ -367,6 +373,7 @@ body.playing .wrap { padding-bottom: 300px; }
       <div class="dock-btns">
         <button class="pp" id="pp" type="button">잠깐 멈추기</button>
         <button class="stop" id="stop" type="button">그만 듣기</button>
+        <button class="rep" id="rep" type="button" aria-pressed="false">🔁 반복 꺼짐</button>
       </div>
       <p class="dock-note" id="dockNote" hidden></p>
       <button class="peek" id="peek" type="button">화면 보기</button>
@@ -512,6 +519,18 @@ function ytId(url) {
 
 /* ---------- 아이 화면 재생 ---------- */
 let playingId = "", kidPlayer = null, kidReady = false, pending = null, startTimer = 0, screenOn = false;
+let curSong = null;
+// 한 곡 반복: 이 기기에 기억해 둠
+let repeatOn = store.get("kids-search-repeat") === "1";
+function renderRepeat() {
+  $("rep").setAttribute("aria-pressed", String(repeatOn));
+  $("rep").textContent = repeatOn ? "🔁 반복 켜짐" : "🔁 반복 꺼짐";
+}
+// 노래(또는 정해 둔 구간)가 끝났을 때: 반복이면 처음부터 다시
+function songEnded() {
+  if (repeatOn && curSong && kidReady) startSong(curSong);
+  else stop();
+}
 // 화면은 그림으로 덮고 소리만. 광고 건너뛰기나 재생이 막혔을 땐 '화면 보기'로 열 수 있음
 function showScreen(on, note) {
   screenOn = on;
@@ -537,8 +556,12 @@ function makeKidPlayer() {
         if (e.data === YT.PlayerState.PLAYING) {
           setPaused(false);
           if (screenOn && $("dockNote").textContent) showScreen(false);
-        } else if (e.data === YT.PlayerState.PAUSED) setPaused(true);
-        else if (e.data === YT.PlayerState.ENDED) stop();
+        } else if (e.data === YT.PlayerState.PAUSED) {
+          // 끝 시간을 정해 둔 노래는 끝에서 '멈춤'으로 올 때가 있어서 같이 확인
+          const atEnd = curSong && curSong.end && kidPlayer.getCurrentTime() >= curSong.end - 1;
+          if (atEnd) songEnded(); else setPaused(true);
+        }
+        else if (e.data === YT.PlayerState.ENDED) songEnded();
       },
     },
   });
@@ -553,6 +576,7 @@ function startSong(v) {
 function play(v) {
   const k = vkey(v);
   playingId = k;
+  curSong = v;
   clearTimeout(startTimer);
   $("cover").innerHTML = `${thumb(v)}<span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>`;
   $("nowTitle").textContent = v.title;
@@ -574,6 +598,7 @@ function play(v) {
 }
 function stop() {
   clearTimeout(startTimer);
+  curSong = null;
   pending = null;
   if (kidReady) { try { kidPlayer.stopVideo(); } catch (e) {} }
   playingId = "";
@@ -586,6 +611,12 @@ $("pp").addEventListener("click", () => {
   kidPlayer.getPlayerState() === YT.PlayerState.PLAYING ? kidPlayer.pauseVideo() : kidPlayer.playVideo();
 });
 $("peek").addEventListener("click", () => showScreen(!screenOn));
+$("rep").addEventListener("click", () => {
+  repeatOn = !repeatOn;
+  store.set("kids-search-repeat", repeatOn ? "1" : "0");
+  renderRepeat();
+});
+renderRepeat();
 function markPlaying() {
   document.querySelectorAll(".vid").forEach(b => b.classList.toggle("on", b.dataset.id === playingId));
 }
