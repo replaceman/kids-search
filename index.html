@@ -264,46 +264,21 @@ body.playing .wrap { padding-bottom: 300px; }
   <details class="grown" id="grown">
     <summary>어른용 · 노래 넣기와 정리</summary>
 
-    <h4>이 기기 연결</h4>
-    <p class="note">노래 목록은 모든 기기가 함께 써요. 넣고 빼려면 이 기기에 GitHub 토큰을 한 번 저장해 주세요.
-      <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">토큰 만들기</a>
-      (Repository access: kids-search 하나만, Permissions → Contents: Read and write)</p>
-    <form id="tokForm" novalidate>
-      <label for="tok">GitHub 토큰
-        <input id="tok" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_...">
-      </label>
-      <div class="row">
-        <button class="btn" type="submit">저장</button>
-        <button class="btn ghost" type="button" id="tokOff" hidden>토큰 지우기</button>
-        <span class="pill" id="tokState">연결 안 됨</span>
-      </div>
-      <p class="msg" id="tokMsg" aria-live="polite"></p>
-    </form>
-    <form id="keyForm" novalidate>
-      <label for="ykey">유튜브 API 키 (있으면 여기서 바로 검색돼요)
-        <input id="ykey" type="password" autocomplete="off" spellcheck="false" placeholder="AIza...">
-      </label>
-      <div class="row">
-        <button class="btn" type="submit">저장</button>
-        <button class="btn ghost" type="button" id="keyOff" hidden>키 지우기</button>
-        <span class="pill" id="keyState">키 없음</span>
-      </div>
-      <p class="msg" id="keyMsg" aria-live="polite"></p>
-    </form>
 
     <div id="tools">
-      <h4>노래 찾아서 넣기</h4>
-      <div class="drop" id="drop" tabindex="0" aria-label="유튜브 링크를 끌어 놓거나 붙여 넣는 곳">
-        <b>여기로 끌어 놓기</b>
-        다른 탭의 유튜브 영상, 썸네일, 링크를 끌어 놓거나 이 칸을 누르고 붙여 넣기(Ctrl+V) 하세요.
-      </div>
-      <p class="msg" id="dropMsg" aria-live="polite"></p>
+      <h4>유튜브에서 찾아 넣기</h4>
       <form class="ysearch" id="ysForm" novalidate>
         <input id="ys" type="search" autocomplete="off" placeholder="예: 핑크퐁 상어가족" aria-label="유튜브 검색어">
         <button class="btn" type="submit" id="ysBtn">검색</button>
       </form>
       <p class="msg" id="ysMsg" aria-live="polite"></p>
       <ul class="yres" id="yres"></ul>
+      <p class="note">또는 다른 탭의 영상을 끌어 놓거나 주소를 붙여 넣어도 돼요.</p>
+      <div class="drop" id="drop" tabindex="0" aria-label="유튜브 링크를 끌어 놓거나 붙여 넣는 곳">
+        <b>여기로 끌어 놓기</b>
+        다른 탭의 유튜브 영상, 썸네일, 링크를 끌어 놓거나 이 칸을 누르고 붙여 넣기(Ctrl+V) 하세요.
+      </div>
+      <p class="msg" id="dropMsg" aria-live="polite"></p>
 
       <form class="ysearch" id="urlForm" novalidate>
         <input id="vUrl" type="text" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="또는 유튜브 주소 붙여 넣기" aria-label="유튜브 주소">
@@ -352,6 +327,28 @@ body.playing .wrap { padding-bottom: 300px; }
       <ul class="saved" id="saved"></ul>
       <p class="msg" id="savedMsg" aria-live="polite"></p>
     </div>
+    <section id="conn">
+    <h4>이 기기 연결</h4>
+    <div class="row" id="tokOn" hidden>
+      <span class="pill on">이 기기 연결됨</span>
+      <button class="btn ghost" type="button" id="tokChange">토큰 바꾸기</button>
+      <button class="btn ghost" type="button" id="tokOff">토큰 지우기</button>
+    </div>
+    <div id="tokSetup">
+    <p class="note">노래 목록은 모든 기기가 함께 써요. 넣고 빼려면 이 기기에 GitHub 토큰을 한 번 저장해 주세요.
+      <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">토큰 만들기</a>
+      (Repository access: kids-search 하나만, Permissions → Contents: Read and write)</p>
+    <form id="tokForm" novalidate>
+      <label for="tok">GitHub 토큰
+        <input id="tok" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_...">
+      </label>
+      <div class="row">
+        <button class="btn" type="submit">저장</button>
+      </div>
+      <p class="msg" id="tokMsg" aria-live="polite"></p>
+    </form>
+    </div>
+    </section>
   </details>
 </div>
 
@@ -376,7 +373,6 @@ body.playing .wrap { padding-bottom: 300px; }
 const REPO = "replaceman/kids-search";
 const API = `https://api.github.com/repos/${REPO}/contents/songs.json`;
 const TOKEN_KEY = "kids-search-token";
-const YKEY_KEY = "kids-search-ytkey";
 const CACHE_KEY = "kids-search-cache";
 const LEGACY_KEY = "kids-search-videos";
 const store = {
@@ -387,7 +383,7 @@ const store = {
 let token = store.get(TOKEN_KEY) || "";
 // 사이트에 내장한 유튜브 검색 키. 구글 클라우드에서 replaceman.github.io 로만 쓰이게 제한해 두세요
 const BUILTIN_YT_KEY = "AIzaSyC6Y6IgffZ9IodN3pSi3GDa5vWFH1tc6xM";
-let ykey = store.get(YKEY_KEY) || BUILTIN_YT_KEY;
+const ykey = BUILTIN_YT_KEY;
 let SONGS = [];
 try { SONGS = JSON.parse(store.get(CACHE_KEY) || "[]"); } catch (e) { SONGS = []; }
 const $ = id => document.getElementById(id);
@@ -428,7 +424,7 @@ async function commit(change, message) {
   throw new Error("CONFLICT");
 }
 const errText = e => ({
-  NO_TOKEN: "이 기기에 GitHub 토큰이 없어요. 위 ‘이 기기 연결’에서 먼저 저장해 주세요.",
+  NO_TOKEN: "이 기기에 GitHub 토큰이 없어요. 맨 아래 ‘이 기기 연결’에서 먼저 저장해 주세요.",
   DUP: "이미 넣은 노래예요(같은 구간).",
   CONFLICT: "다른 기기에서 동시에 고치는 중이었어요. 잠시 뒤 다시 눌러 주세요.",
   401: "토큰이 맞지 않거나 만료됐어요. 새로 만들어 저장해 주세요.",
@@ -630,14 +626,9 @@ $("f").addEventListener("submit", e => { e.preventDefault(); render(); });
 $q.addEventListener("input", render);
 
 /* ---------- 어른용: 이 기기 연결 ---------- */
-function renderConn() {
-  $("tokState").textContent = token ? "연결됨" : "연결 안 됨";
-  $("tokState").classList.toggle("on", !!token);
-  $("tokOff").hidden = !token;
-  $("keyState").textContent = !ykey ? "키 없음" : ykey === BUILTIN_YT_KEY ? "사이트 키 사용 중" : "이 기기 키 사용 중";
-  $("keyState").classList.toggle("on", !!ykey);
-  $("keyOff").hidden = !store.get(YKEY_KEY);
-  $("ys").placeholder = ykey ? "예: 핑크퐁 상어가족" : "검색어를 적으면 유튜브가 새 탭으로 열려요";
+function renderConn(changing = false) {
+  $("tokOn").hidden = !token || changing;
+  $("tokSetup").hidden = !!token && !changing;
 }
 $("tokForm").addEventListener("submit", async e => {
   e.preventDefault();
@@ -658,6 +649,7 @@ $("tokForm").addEventListener("submit", async e => {
   renderConn();
 });
 $("tokOff").addEventListener("click", () => { token = ""; store.del(TOKEN_KEY); renderConn(); });
+$("tokChange").addEventListener("click", () => { renderConn(true); $("tok").focus(); });
 
 async function ytApi(path, params) {
   const r = await fetch(`https://www.googleapis.com/youtube/v3/${path}?${new URLSearchParams({ ...params, key: ykey })}`);
@@ -668,22 +660,6 @@ async function ytApi(path, params) {
   }
   return j;
 }
-$("keyForm").addEventListener("submit", async e => {
-  e.preventDefault();
-  const $m = $("keyMsg"), val = $("ykey").value.trim();
-  $m.className = "msg";
-  if (!val) { $m.classList.add("err"); $m.textContent = "키를 붙여 넣어 주세요."; return; }
-  const prev = ykey; ykey = val;
-  try {
-    await ytApi("search", { part: "id", q: "동요", maxResults: 1, type: "video" });
-    store.set(YKEY_KEY, ykey); e.target.reset();
-    $m.classList.add("ok"); $m.textContent = "저장했어요. 이제 여기서 바로 유튜브를 찾을 수 있어요.";
-  } catch (err) {
-    ykey = prev; $m.classList.add("err"); $m.textContent = errText(err);
-  }
-  renderConn();
-});
-$("keyOff").addEventListener("click", () => { store.del(YKEY_KEY); ykey = BUILTIN_YT_KEY; renderConn(); });
 
 /* ---------- 어른용: 유튜브 검색 ---------- */
 const isoSec = s => {
