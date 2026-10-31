@@ -385,7 +385,9 @@ const store = {
   del(k) { try { localStorage.removeItem(k); } catch (e) {} },
 };
 let token = store.get(TOKEN_KEY) || "";
-let ykey = store.get(YKEY_KEY) || "";
+// 사이트에 내장한 유튜브 검색 키. 구글 클라우드에서 replaceman.github.io 로만 쓰이게 제한해 두세요
+const BUILTIN_YT_KEY = "AIzaSyC6Y6IgffZ9IodN3pSi3GDa5vWFH1tc6xM";
+let ykey = store.get(YKEY_KEY) || BUILTIN_YT_KEY;
 let SONGS = [];
 try { SONGS = JSON.parse(store.get(CACHE_KEY) || "[]"); } catch (e) { SONGS = []; }
 const $ = id => document.getElementById(id);
@@ -632,9 +634,9 @@ function renderConn() {
   $("tokState").textContent = token ? "연결됨" : "연결 안 됨";
   $("tokState").classList.toggle("on", !!token);
   $("tokOff").hidden = !token;
-  $("keyState").textContent = ykey ? "키 있음" : "키 없음";
+  $("keyState").textContent = !ykey ? "키 없음" : ykey === BUILTIN_YT_KEY ? "사이트 키 사용 중" : "이 기기 키 사용 중";
   $("keyState").classList.toggle("on", !!ykey);
-  $("keyOff").hidden = !ykey;
+  $("keyOff").hidden = !store.get(YKEY_KEY);
   $("ys").placeholder = ykey ? "예: 핑크퐁 상어가족" : "검색어를 적으면 유튜브가 새 탭으로 열려요";
 }
 $("tokForm").addEventListener("submit", async e => {
@@ -681,7 +683,7 @@ $("keyForm").addEventListener("submit", async e => {
   }
   renderConn();
 });
-$("keyOff").addEventListener("click", () => { ykey = ""; store.del(YKEY_KEY); renderConn(); });
+$("keyOff").addEventListener("click", () => { store.del(YKEY_KEY); ykey = BUILTIN_YT_KEY; renderConn(); });
 
 /* ---------- 어른용: 유튜브 검색 ---------- */
 const isoSec = s => {
