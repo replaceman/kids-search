@@ -108,6 +108,8 @@ mark { background: var(--sun); color: #233a4a; border-radius: 4px; padding: 0 2p
 .dock-in { max-width: 760px; margin: 0 auto; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
 .player { width: 356px; max-width: 100%; aspect-ratio: 16/9; border-radius: 12px; overflow: hidden; background: #000; flex: none; }
 .player { position: relative; }
+.dock { transition: transform .2s; }
+.dock.off { transform: translateY(calc(100% + 20px)); pointer-events: none; }
 .player iframe { width: 100%; height: 100%; border: 0; display: block; }
 /* 영상 위를 덮는 그림. 소리만 들리게 */
 .cover { position: absolute; inset: 0; z-index: 2; }
@@ -353,9 +355,9 @@ body.playing .wrap { padding-bottom: 300px; }
   </details>
 </div>
 
-<div class="dock" id="dock" hidden>
+<div class="dock off" id="dock" aria-hidden="true">
   <div class="dock-in">
-    <div class="player" id="player"></div>
+    <div class="player" id="player"><div id="kidYT"></div><div class="cover paused" id="cover"></div></div>
     <div class="dock-side">
       <span class="now">지금 듣는 중</span>
       <span class="now-title" id="nowTitle"></span>
@@ -505,46 +507,29 @@ function ytId(url) {
 }
 
 /* ---------- 아이 화면 재생 ---------- */
-let playingId = "", kidPlayer = null, startTimer = 0, screenOn = false;
-// 화면은 그림으로 덮고 소리만. 광고 건너뛰기나 자동 재생이 막혔을 땐 '화면 보기'로 열 수 있음
+let playingId = "", kidPlayer = null, kidReady = false, pending = null, startTimer = 0, screenOn = false;
+// 화면은 그림으로 덮고 소리만. 광고 건너뛰기나 재생이 막혔을 땐 '화면 보기'로 열 수 있음
 function showScreen(on, note) {
   screenOn = on;
-  const c = $("player").querySelector(".cover");
-  if (c) c.hidden = on;
+  $("cover").hidden = on;
   $("peek").textContent = on ? "화면 가리기" : "화면 보기";
   $("dockNote").hidden = !note;
   $("dockNote").textContent = note || "";
 }
 function setPaused(p) {
   $("pp").textContent = p ? "다시 듣기" : "잠깐 멈추기";
-  const c = $("player").querySelector(".cover");
-  if (c) c.classList.toggle("paused", p);
+  $("cover").classList.toggle("paused", p);
 }
-async function play(v) {
-  const k = vkey(v);
-  playingId = k;
-  clearTimeout(startTimer);
-  if (kidPlayer && kidPlayer.destroy) { try { kidPlayer.destroy(); } catch (e) {} }
-  kidPlayer = null;
-  $("player").innerHTML = `<div id="kidYT"></div>
-    <div class="cover paused">${thumb(v)}<span class="eq" aria-hidden="true"><i></i><i></i><i></i></span></div>`;
-  $("nowTitle").textContent = v.title;
-  $("dock").hidden = false;
-  document.body.classList.add("playing");
-  showScreen(false); setPaused(false);
-  markPlaying();
-  await loadYT();
-  if (playingId !== k) return;
-  const vars = { autoplay: 1, playsinline: 1, rel: 0, start: v.start || 0 };
-  if (v.end) vars.end = v.end;
+// 플레이어는 페이지를 열 때 미리 하나 만들어 둠. 누르는 순간 바로 재생 명령을 보내야 휴대폰에서도 막히지 않음
+function makeKidPlayer() {
   kidPlayer = new YT.Player("kidYT", {
     host: "https://www.youtube-nocookie.com",
-    videoId: v.id,
-    playerVars: vars,
+    width: "100%", height: "100%",
+    playerVars: { playsinline: 1, rel: 0 },
     events: {
-      onReady: e => { try { e.target.playVideo(); } catch (err) {} },
+      onReady: () => { kidReady = true; if (pending) { const v = pending; pending = null; startSong(v); } },
       onStateChange: e => {
-        if (playingId !== k) return;
+        if (!playingId) return;
         if (e.data === YT.PlayerState.PLAYING) {
           setPaused(false);
           if (screenOn && $("dockNote").textContent) showScreen(false);
@@ -553,20 +538,43 @@ async function play(v) {
       },
     },
   });
-  // 휴대폰에서 자동 재생이 막히면 화면을 열어 직접 ▶를 누르게 함
+}
+function startSong(v) {
+  const opts = { videoId: v.id, startSeconds: v.start || 0 };
+  if (v.end) opts.endSeconds = v.end;
+  try { kidPlayer.unMute(); } catch (e) {}
+  kidPlayer.loadVideoById(opts);
+  try { kidPlayer.playVideo(); } catch (e) {}
+}
+function play(v) {
+  const k = vkey(v);
+  playingId = k;
+  clearTimeout(startTimer);
+  $("cover").innerHTML = `${thumb(v)}<span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>`;
+  $("nowTitle").textContent = v.title;
+  $("dock").classList.remove("off");
+  $("dock").setAttribute("aria-hidden", "false");
+  document.body.classList.add("playing");
+  showScreen(false); setPaused(false);
+  markPlaying();
+  if (kidReady) startSong(v);       // 누른 그 순간에 바로 재생
+  else { pending = v; loadYT().then(() => { if (!kidPlayer) makeKidPlayer(); }); }
+  // 그래도 막히면 화면을 열어 ▶를 한 번 누르게 함 (그 뒤로는 바로 재생돼요)
   startTimer = setTimeout(() => {
-    if (playingId !== k || !kidPlayer || !kidPlayer.getPlayerState) return;
+    if (playingId !== k || !kidReady) return;
     const s = kidPlayer.getPlayerState();
     if (s !== YT.PlayerState.PLAYING && s !== YT.PlayerState.BUFFERING) {
-      showScreen(true, "자동으로 시작이 안 됐어요. 화면의 ▶를 한 번 눌러 주세요. 시작되면 다시 가려져요.");
+      showScreen(true, "이 기기에서는 처음 한 번 화면의 ▶를 눌러야 해요. 시작되면 다시 가려져요.");
     }
-  }, 4000);
+  }, 3000);
 }
 function stop() {
   clearTimeout(startTimer);
-  if (kidPlayer && kidPlayer.destroy) { try { kidPlayer.destroy(); } catch (e) {} }
-  kidPlayer = null;
-  playingId = ""; $("player").innerHTML = ""; $("dock").hidden = true;
+  pending = null;
+  if (kidReady) { try { kidPlayer.stopVideo(); } catch (e) {} }
+  playingId = "";
+  $("dock").classList.add("off");
+  $("dock").setAttribute("aria-hidden", "true");
   document.body.classList.remove("playing"); markPlaying();
 }
 $("pp").addEventListener("click", () => {
@@ -938,6 +946,7 @@ $("vUrl").addEventListener("paste", e => {
 
 render(); renderSaved();
 loadSongs();
+loadYT().then(() => { if (!kidPlayer) makeKidPlayer(); });
 renderConn();
 </script>
 </body>
