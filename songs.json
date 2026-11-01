@@ -167,15 +167,5 @@
     "start": 0,
     "end": 0,
     "key": "fsdkjgy-0-0"
-  },
-  {
-    "type": "file",
-    "src": "https://vod-adaptive-ak.vimeocdn.com/exp=1793503816~acl=%2F766e0bab-7d57-4105-b6ca-1c29b68d3720%2Fpsid%3D12219adfe7c523dd2dc793cf32bf2bbb7a47dcda1793500216%2F%2A~hmac=2ff2d9a88c080466c6c5999a3a1e2f180710863f423c6d5e5ff89c1853e90f07/766e0bab-7d57-4105-b6ca-1c29b68d3720/psid=12219adfe7c523dd2dc793cf32bf2bbb7a47dcda1793500216/v2/playlist/av/766e0bab/avf/9af8fbc6/media.m3u8?pathsig=8c953e4f~XuamwPIGJM8VySYL_J-32sHg8-G7tjf1_keh-VlNDAo&qsr=1&r=dXMtY2VudHJhbDE%3D&st=video",
-    "title": "ABCs Song",
-    "keys": "",
-    "start": 0,
-    "end": 0,
-    "key": "f1ntxm8n-0-0",
-    "cat": "월드패밀리"
   }
 ]
