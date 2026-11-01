@@ -111,6 +111,9 @@ mark { background: var(--sun); color: #233a4a; border-radius: 4px; padding: 0 2p
 .dock { transition: transform .2s; }
 .dock.off { transform: translateY(calc(100% + 20px)); pointer-events: none; }
 .player iframe { width: 100%; height: 100%; border: 0; display: block; }
+#kidVimeo { position: absolute; inset: 0; z-index: 1; background: #000; }
+#kidVimeo iframe, #edVimeo iframe { width: 100%; height: 100%; border: 0; display: block; }
+#edVimeo { width: 100%; height: 100%; }
 /* 영상 위를 덮는 그림. 소리만 들리게 */
 .cover { position: absolute; inset: 0; z-index: 2; }
 .cover .thumb { width: 100%; height: 100%; border-radius: 0; }
@@ -319,9 +322,9 @@ body.playing .wrap { padding-bottom: calc(var(--dockH, 160px) + 24px); }
       <p class="msg" id="ysMsg" aria-live="polite"></p>
       <ul class="yres" id="yres"></ul>
       <h4>주소로 넣기</h4>
-      <p class="note">유튜브 주소, 구글 드라이브 공유 링크(‘링크가 있는 모든 사용자’), 영상·소리 파일 주소(.mp4 .mp3 .m4a 등)를 붙여 넣으세요.</p>
+      <p class="note">유튜브·Vimeo 주소, 구글 드라이브 공유 링크(‘링크가 있는 모든 사용자’), 영상·소리 파일 주소(.mp4 .mp3 .m4a 등)를 붙여 넣으세요.</p>
       <form class="ysearch" id="urlForm" novalidate>
-        <input id="vUrl" type="url" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="유튜브, 구글 드라이브, .mp4 주소" aria-label="영상 주소">
+        <input id="vUrl" type="url" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="유튜브, Vimeo, 구글 드라이브, .mp4 주소" aria-label="영상 주소">
         <button class="btn" type="submit">고르기</button>
       </form>
       <p class="msg" id="urlMsg" aria-live="polite"></p>
@@ -333,6 +336,7 @@ body.playing .wrap { padding-bottom: calc(var(--dockH, 160px) + 24px); }
 
       <div class="ed" id="ed" hidden>
         <div class="edPlayer" id="edYTBox"><div id="edPlayer"></div></div>
+        <div class="edPlayer" id="edVimeoBox" hidden><div id="edVimeo"></div></div>
         <audio id="edAudio" controls preload="metadata" playsinline hidden style="width:100%"></audio>
         <label for="vTitle">아이에게 보일 이름
           <input id="vTitle" type="text">
@@ -405,7 +409,7 @@ body.playing .wrap { padding-bottom: calc(var(--dockH, 160px) + 24px); }
 
 <div class="dock off" id="dock" aria-hidden="true">
   <div class="dock-in">
-    <div class="player" id="player"><div id="kidYT"></div><div class="cover paused" id="cover"></div></div>
+    <div class="player" id="player"><div id="kidYT"></div><div id="kidVimeo" hidden></div><div class="cover paused" id="cover"></div></div>
     <div class="dock-side">
       <div class="dock-head">
         <span class="now">지금 듣는 중</span>
@@ -585,6 +589,31 @@ const fileName = src => {
 };
 const hashStr = s => { let h = 5381; for (const c of s) h = ((h << 5) + h + c.charCodeAt(0)) >>> 0; return h.toString(36); };
 const isFile = v => !!(v && v.type === "file");
+const isVimeo = v => !!(v && v.type === "vimeo");
+// Vimeo 링크 → { id, h } (일부 공개 영상은 h 값이 붙어요)
+function vimeoParse(s) {
+  s = String(s);
+  let m = s.match(/player\.vimeo\.com\/video\/(\d+)(?:[^\s]*?[?&]h=([0-9a-f]+))?/i);
+  if (m) return { id: m[1], h: m[2] || "" };
+  m = s.match(/vimeo\.com\/(?:[^\s?#]*\/)?(\d{5,})(?:\/([0-9a-f]{6,}))?/i);
+  if (m) {
+    const h = m[2] || ((s.match(/[?&]h=([0-9a-f]+)/i) || [])[1] || "");
+    return { id: m[1], h };
+  }
+  return null;
+}
+const vimeoUrl = v => `https://player.vimeo.com/video/${v.vimeo}${v.h ? `?h=${v.h}` : ""}`;
+const vimeoPage = v => `https://vimeo.com/${v.vimeo}${v.h ? `/${v.h}` : ""}`;
+let vimeoReady = null;
+function loadVimeo() {
+  if (!vimeoReady) vimeoReady = new Promise((res, rej) => {
+    const s = document.createElement("script");
+    s.src = "https://player.vimeo.com/api/player.js";
+    s.onload = res; s.onerror = () => { vimeoReady = null; rej(new Error("VIMEO_LOAD")); };
+    document.head.appendChild(s);
+  });
+  return vimeoReady;
+}
 const MAX_UPLOAD = 40 * 1024 * 1024;
 const readB64 = file => new Promise((res, rej) => {
   const r = new FileReader();
@@ -659,7 +688,7 @@ function makeKidPlayer() {
     events: {
       onReady: () => { kidReady = true; if (pending) { const v = pending; pending = null; startSong(v); } },
       onStateChange: e => {
-        if (!playingId || isFile(curSong)) return;
+        if (!playingId || isFile(curSong) || isVimeo(curSong)) return;
         if (e.data === YT.PlayerState.PLAYING) {
           setPaused(false);
           if (screenOn && $("dockNote").textContent) showScreen(false);
@@ -707,7 +736,50 @@ function stopFile() {
   if (kidAudio.getAttribute("src")) { kidAudio.removeAttribute("src"); kidAudio.load(); }
   delete kidAudio.dataset.src;
 }
+let kidVimeo = null, kidVimeoOn = "";
+function pauseVimeo() { if (kidVimeo) kidVimeo.pause().catch(() => {}); }
+function showLayer(v) {
+  $("kidVimeo").hidden = !isVimeo(v);
+  const y = $("kidYT"); if (y) y.style.visibility = isVimeo(v) ? "hidden" : "";
+}
+async function startVimeo(v) {
+  try { await loadVimeo(); } catch (e) {
+    $("dockNote").hidden = false; $("dockNote").textContent = "Vimeo 플레이어를 불러오지 못했어요. 인터넷을 확인해 주세요."; return;
+  }
+  if (curSong !== v) return;
+  const want = v.vimeo + (v.h || "");
+  try {
+    if (!kidVimeo) {
+      kidVimeo = new Vimeo.Player("kidVimeo", { url: vimeoUrl(v), autoplay: true, playsinline: true, title: false, byline: false, portrait: false, width: 640 });
+      kidVimeo.on("play", () => { if (!isVimeo(curSong)) return; setPaused(false); if (screenOn && $("dockNote").textContent) showScreen(false); });
+      kidVimeo.on("pause", () => { if (isVimeo(curSong)) setPaused(true); });
+      kidVimeo.on("ended", () => { if (isVimeo(curSong)) songEnded(); });
+      kidVimeo.on("timeupdate", d => { if (isVimeo(curSong) && curSong.end && d.seconds >= curSong.end) songEnded(); });
+      kidVimeo.on("error", () => {
+        if (!isVimeo(curSong)) return;
+        showScreen(true, "이 Vimeo 영상을 재생하지 못했어요. 영상 설정에서 다른 사이트에 넣기(퍼가기)를 허용했는지 확인해 주세요.");
+      });
+    } else if (kidVimeoOn !== want) {
+      await kidVimeo.loadVideo(v.h ? vimeoUrl(v) : +v.vimeo);
+    }
+    kidVimeoOn = want;
+    if (curSong !== v) return;
+    await kidVimeo.setCurrentTime(v.start || 0).catch(() => {});
+    await kidVimeo.setVolume(1).catch(() => {});
+    await kidVimeo.play();
+  } catch (e) {
+    if (curSong === v) showScreen(true, "화면의 ▶를 한 번 눌러 주세요. 시작되면 다시 가려져요.");
+  }
+}
 function startSong(v) {
+  showLayer(v);
+  if (isVimeo(v)) {
+    if (kidReady) { try { kidPlayer.pauseVideo(); } catch (e) {} }
+    stopFile();
+    startVimeo(v);
+    return;
+  }
+  pauseVimeo();
   if (isFile(v)) {
     if (kidReady) { try { kidPlayer.pauseVideo(); } catch (e) {} }
     startFile(v);
@@ -733,7 +805,7 @@ function play(v) {
   showScreen(false); setPaused(false);
   $("peek").hidden = isFile(v);
   markPlaying();
-  if (isFile(v)) { startSong(v); return; }   // 파일은 바로 재생
+  if (isFile(v) || isVimeo(v)) { startSong(v); return; }   // 파일·Vimeo는 바로 재생
   if (kidReady) startSong(v);       // 누른 그 순간에 바로 재생
   else { pending = v; loadYT().then(() => { if (!kidPlayer) makeKidPlayer(); }); }
   // 그래도 막히면 화면을 열어 ▶를 한 번 누르게 함 (그 뒤로는 바로 재생돼요)
@@ -751,6 +823,7 @@ function stop() {
   pending = null;
   if (kidReady) { try { kidPlayer.stopVideo(); } catch (e) {} }
   stopFile();
+  pauseVimeo();
   playingId = "";
   $("dock").classList.add("off");
   $("dock").setAttribute("aria-hidden", "true");
@@ -758,6 +831,10 @@ function stop() {
 }
 $("pp").addEventListener("click", () => {
   if (isFile(curSong)) { kidAudio.paused ? startFileResume() : kidAudio.pause(); return; }
+  if (isVimeo(curSong)) {
+    if (kidVimeo) kidVimeo.getPaused().then(p => p ? kidVimeo.play() : kidVimeo.pause()).catch(() => {});
+    return;
+  }
   if (!kidPlayer || !kidPlayer.getPlayerState) return;
   kidPlayer.getPlayerState() === YT.PlayerState.PLAYING ? kidPlayer.pauseVideo() : kidPlayer.playVideo();
 });
@@ -796,12 +873,13 @@ $("stop").addEventListener("click", stop);
 
 const PLAY_ICON = `<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="#233a4a"/></svg>`;
 function thumb(v, cls = "", inner = "") {
-  const seed = v.id || v.src || v.title || "";
+  const seed = v.id || v.vimeo || v.src || v.title || "";
   const n = [...seed].reduce((a, c) => a + c.charCodeAt(0), 0);
   return `<span class="thumb ${cls}" style="--ph:${COLORS[n % COLORS.length]}">
     <span class="ph" aria-hidden="true">${esc([...(v.title || "")][0] || "♪")}</span>
     ${v.id ? `<img src="https://i.ytimg.com/vi/${v.id}/mqdefault.jpg" alt="" loading="lazy" onerror="this.remove()">`
-      : v.drive ? `<img src="https://drive.google.com/thumbnail?id=${v.drive}&sz=w320" alt="" loading="lazy" onerror="this.remove()">` : ""}
+      : v.drive ? `<img src="https://drive.google.com/thumbnail?id=${v.drive}&sz=w320" alt="" loading="lazy" onerror="this.remove()">`
+      : v.thumb ? `<img src="${esc(v.thumb)}" alt="" loading="lazy" onerror="this.remove()">` : ""}
     ${inner}
   </span>`;
 }
@@ -959,6 +1037,8 @@ $("urlForm").addEventListener("submit", e => {
   if (!raw) { $m.classList.add("err"); $m.textContent = "주소를 붙여 넣어 주세요."; return; }
   const id = ytId(raw);
   if (id) { openEditor({ id, title: "", duration: 0 }); return; }
+  const vm = vimeoParse(raw);
+  if (vm) { openEditor({ type: "vimeo", vimeo: vm.id, h: vm.h, title: "", duration: 0 }); return; }
   const did = driveId(raw);
   if (did) { openEditor({ type: "file", src: driveSrc(did), drive: did, title: "", duration: 0 }); return; }
   const src = mediaUrl(raw);
@@ -1000,11 +1080,15 @@ function paintRange() {
 }
 const edAudio = $("edAudio");
 let edStopAt = 0;
+let edVimeo = null, edVimeoTime = 0;
+function stopEdVimeo() { if (edVimeo) edVimeo.pause().catch(() => {}); }
 function seek(t) {
+  if (isVimeo(cur)) { if (edVimeo) edVimeo.setCurrentTime(t).catch(() => {}); return; }
   if (isFile(cur)) { try { edAudio.currentTime = t; } catch (e) {} }
   else if (edPlayer && edPlayer.seekTo) edPlayer.seekTo(t, true);
 }
 function edTime() {
+  if (isVimeo(cur)) return edVimeoTime;
   if (isFile(cur)) return edAudio.currentTime || 0;
   return edPlayer && edPlayer.getCurrentTime ? edPlayer.getCurrentTime() : 0;
 }
@@ -1034,6 +1118,40 @@ async function openEditor(v) {
   setMax(v.duration || 100);
   $("ed").scrollIntoView({ behavior: "smooth", block: "start" });
   edStopAt = 0;
+  $("edVimeoBox").hidden = !isVimeo(v);
+  if (!isVimeo(v)) stopEdVimeo();
+  if (isVimeo(v)) {
+    if (edPlayer && edPlayer.stopVideo) { try { edPlayer.stopVideo(); } catch (e) {} }
+    edAudio.pause(); edAudio.hidden = true; $("edYTBox").hidden = true;
+    const fail = msg => { if (cur !== v) return; $("addMsg").className = "msg err"; $("addMsg").textContent = msg; };
+    try { await loadVimeo(); } catch (e) { fail("Vimeo 플레이어를 불러오지 못했어요. 인터넷을 확인해 주세요."); return; }
+    if (cur !== v) return;
+    try {
+      if (!edVimeo) {
+        edVimeo = new Vimeo.Player("edVimeo", { url: vimeoUrl(v), playsinline: true, title: false, byline: false, portrait: false, width: 640 });
+        edVimeo.on("timeupdate", d => {
+          edVimeoTime = d.seconds;
+          if (edStopAt && d.seconds >= edStopAt) { edVimeo.pause().catch(() => {}); edStopAt = 0; }
+        });
+      } else {
+        await edVimeo.loadVideo(v.h ? vimeoUrl(v) : +v.vimeo);
+      }
+      edVimeoTime = 0;
+      const d = await edVimeo.getDuration();
+      if (cur === v && d) { rE.value = 0; setMax(d); }
+      if (cur === v && !$("vTitle").value) {
+        const ttl = await edVimeo.getVideoTitle().catch(() => "");
+        if (ttl && !$("vTitle").value) $("vTitle").value = ttl;
+      }
+    } catch (e) {
+      fail("이 Vimeo 영상을 불러오지 못했어요. 주소가 맞는지, 영상 설정에서 다른 사이트에 넣기(퍼가기)를 허용했는지 확인해 주세요.");
+      return;
+    }
+    // 썸네일 (못 가져와도 괜찮음)
+    fetch(`https://vimeo.com/api/oembed.json?url=${encodeURIComponent(vimeoPage(v))}`)
+      .then(r => r.ok ? r.json() : null).then(j => { if (j && j.thumbnail_url && cur === v) v.thumb = j.thumbnail_url; }).catch(() => {});
+    return;
+  }
   if (isFile(v)) {
     if (edPlayer && edPlayer.stopVideo) { try { edPlayer.stopVideo(); } catch (e) {} }
     $("edYTBox").hidden = true;
@@ -1068,6 +1186,12 @@ async function openEditor(v) {
   }
 }
 $("hearRange").addEventListener("click", () => {
+  if (isVimeo(cur)) {
+    if (!edVimeo) return;
+    edStopAt = +rE.value;
+    edVimeo.setCurrentTime(+rS.value).then(() => edVimeo.play()).catch(() => {});
+    return;
+  }
   if (isFile(cur)) {
     try { edAudio.currentTime = +rS.value; } catch (e) {}
     edStopAt = +rE.value;
@@ -1087,7 +1211,7 @@ $("nowEnd").addEventListener("click", () => {
 });
 $("edCancel").addEventListener("click", () => {
   if (edPlayer && edPlayer.stopVideo) edPlayer.stopVideo();
-  edAudio.pause();
+  edAudio.pause(); stopEdVimeo();
   $("ed").hidden = true; cur = null;
 });
 $("addBtn").addEventListener("click", async () => {
@@ -1108,7 +1232,9 @@ $("addBtn").addEventListener("click", async () => {
       cur.uploadedPath = src;
       $m.textContent = "넣는 중…";
     }
-    const song = isFile(cur)
+    const song = isVimeo(cur)
+      ? { type: "vimeo", vimeo: cur.vimeo, h: cur.h || "", title, keys, start, end, key: `v${cur.vimeo}-${start}-${end}`, ...(cur.thumb ? { thumb: cur.thumb } : {}) }
+      : isFile(cur)
       ? { type: "file", src, title, keys, start, end, key: `f${hashStr(src)}-${start}-${end}`, ...(cur.drive ? { drive: cur.drive } : {}) }
       : { id: cur.id, title, keys, start, end, key: `${cur.id}-${start}-${end}` };
     if (cat) song.cat = cat;
@@ -1117,7 +1243,7 @@ $("addBtn").addEventListener("click", async () => {
       return [...list, song];
     }, `노래 넣기: ${title}`);
     if (edPlayer && edPlayer.stopVideo) edPlayer.stopVideo();
-    edAudio.pause();
+    edAudio.pause(); stopEdVimeo();
     $m.className = "msg ok";
     $m.textContent = cur.upload
       ? `‘${title}’을(를) 올렸어요. 사이트에 반영되는 1~2분 뒤부터 재생돼요.`
