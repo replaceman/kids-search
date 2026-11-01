@@ -501,6 +501,7 @@ function setSongs(list) {
   SONGS = Array.isArray(list) ? list : [];
   store.set(CACHE_KEY, JSON.stringify(SONGS));
   render(); renderSaved(); renderLegacy();
+  prepVimeo();
 }
 async function loadSongs() {
   try { setSongs((await fetchRemote()).list); return; } catch (e) {}
@@ -742,6 +743,31 @@ function showLayer(v) {
   $("kidVimeo").hidden = !isVimeo(v);
   const y = $("kidYT"); if (y) y.style.visibility = isVimeo(v) ? "hidden" : "";
 }
+// Vimeo 플레이어도 페이지를 열 때 미리 하나 만들어 둠. 누르는 순간 새로 만들면 음소거로 시작돼요
+function makeKidVimeo(v) {
+  kidVimeo = new Vimeo.Player("kidVimeo", { url: vimeoUrl(v), autoplay: false, muted: false, playsinline: true, title: false, byline: false, portrait: false, width: 640 });
+  kidVimeoOn = v.vimeo + (v.h || "");
+  kidVimeo.on("play", () => { if (!isVimeo(curSong)) return; setPaused(false); if (screenOn && $("dockNote").textContent) showScreen(false); });
+  kidVimeo.on("pause", () => { if (isVimeo(curSong)) setPaused(true); });
+  kidVimeo.on("ended", () => { if (isVimeo(curSong)) songEnded(); });
+  kidVimeo.on("timeupdate", d => { if (isVimeo(curSong) && curSong.end && d.seconds >= curSong.end) songEnded(); });
+  kidVimeo.on("volumechange", d => {
+    // 소리를 켜면 안내를 닫고 다시 가림
+    if (isVimeo(curSong) && d && d.volume > 0 && screenOn && $("dockNote").textContent) {
+      kidVimeo.getMuted().then(m => { if (!m) showScreen(false); }).catch(() => {});
+    }
+  });
+  kidVimeo.on("error", () => {
+    if (!isVimeo(curSong)) return;
+    showScreen(true, "이 Vimeo 영상을 재생하지 못했어요. 영상 설정에서 다른 사이트에 넣기(퍼가기)를 허용했는지 확인해 주세요.");
+  });
+}
+function prepVimeo() {
+  if (kidVimeo) return;
+  const first = SONGS.find(isVimeo);
+  if (!first) return;
+  loadVimeo().then(() => { if (!kidVimeo) makeKidVimeo(first); }).catch(() => {});
+}
 async function startVimeo(v) {
   try { await loadVimeo(); } catch (e) {
     $("dockNote").hidden = false; $("dockNote").textContent = "Vimeo 플레이어를 불러오지 못했어요. 인터넷을 확인해 주세요."; return;
@@ -749,27 +775,31 @@ async function startVimeo(v) {
   if (curSong !== v) return;
   const want = v.vimeo + (v.h || "");
   try {
-    if (!kidVimeo) {
-      kidVimeo = new Vimeo.Player("kidVimeo", { url: vimeoUrl(v), autoplay: true, playsinline: true, title: false, byline: false, portrait: false, width: 640 });
-      kidVimeo.on("play", () => { if (!isVimeo(curSong)) return; setPaused(false); if (screenOn && $("dockNote").textContent) showScreen(false); });
-      kidVimeo.on("pause", () => { if (isVimeo(curSong)) setPaused(true); });
-      kidVimeo.on("ended", () => { if (isVimeo(curSong)) songEnded(); });
-      kidVimeo.on("timeupdate", d => { if (isVimeo(curSong) && curSong.end && d.seconds >= curSong.end) songEnded(); });
-      kidVimeo.on("error", () => {
-        if (!isVimeo(curSong)) return;
-        showScreen(true, "이 Vimeo 영상을 재생하지 못했어요. 영상 설정에서 다른 사이트에 넣기(퍼가기)를 허용했는지 확인해 주세요.");
-      });
-    } else if (kidVimeoOn !== want) {
-      await kidVimeo.loadVideo(v.h ? vimeoUrl(v) : +v.vimeo);
-    }
-    kidVimeoOn = want;
+    if (!kidVimeo) makeKidVimeo(v);
+    else if (kidVimeoOn !== want) { await kidVimeo.loadVideo(v.h ? vimeoUrl(v) : +v.vimeo); kidVimeoOn = want; }
     if (curSong !== v) return;
+    kidVimeo.setMuted(false).catch(() => {});
+    kidVimeo.setVolume(1).catch(() => {});
     await kidVimeo.setCurrentTime(v.start || 0).catch(() => {});
-    await kidVimeo.setVolume(1).catch(() => {});
     await kidVimeo.play();
+    kidVimeo.setMuted(false).catch(() => {});
+    kidVimeo.setVolume(1).catch(() => {});
   } catch (e) {
     if (curSong === v) showScreen(true, "화면의 ▶를 한 번 눌러 주세요. 시작되면 다시 가려져요.");
+    return;
   }
+  // 그래도 음소거로 시작됐으면 화면을 열어 소리 버튼을 한 번 누르게 함
+  setTimeout(async () => {
+    if (curSong !== v || !kidVimeo) return;
+    const muted = await kidVimeo.getMuted().catch(() => false);
+    const vol = await kidVimeo.getVolume().catch(() => 1);
+    if (!muted && vol > 0) return;
+    await kidVimeo.setMuted(false).catch(() => {});
+    await kidVimeo.setVolume(1).catch(() => {});
+    if (await kidVimeo.getMuted().catch(() => false)) {
+      showScreen(true, "소리가 꺼진 채 시작됐어요. 영상의 🔇 소리 버튼을 한 번 눌러 주세요. 그다음부터는 바로 소리가 나요.");
+    }
+  }, 1200);
 }
 function startSong(v) {
   showLayer(v);
