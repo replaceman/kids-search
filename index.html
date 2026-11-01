@@ -200,6 +200,20 @@ body.playing .wrap { padding-bottom: calc(var(--dockH, 160px) + 24px); }
 .saved .ttl::after { content: " ✎"; font-size: 13px; color: var(--ink-soft); }
 .saved .ttl:hover { background: var(--sky); }
 .saved .ttl:focus-visible { outline: 3px solid var(--tomato); outline-offset: 2px; }
+.cats { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.cat {
+  border: 2px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer;
+  font-family: var(--font-display); font-size: 18px; padding: 6px 16px; border-radius: 999px;
+}
+.cat[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--card); }
+.cat:focus-visible, .catPill:focus-visible, .upl:focus-within { outline: 3px solid var(--tomato); outline-offset: 2px; }
+.catPill {
+  align-self: flex-start; margin-top: 2px; border: 1px dashed var(--line); background: transparent; color: var(--ink-soft);
+  font: inherit; font-size: 13px; padding: 0 10px; border-radius: 999px; cursor: pointer;
+}
+.catPill.has { border-style: solid; background: var(--sky); color: var(--ink); }
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.upl { display: inline-block; margin-top: 10px; cursor: pointer; }
 .saved .ttlEdit { font: inherit; font-family: var(--font-display); font-size: 17px; padding: 4px 8px;
   border-radius: 8px; border: 2px solid var(--tomato); background: var(--card); color: var(--ink); width: 100%; min-width: 0; }
 .saved small { color: var(--ink-soft); }
@@ -285,6 +299,8 @@ body.playing .wrap { padding-bottom: calc(var(--dockH, 160px) + 24px); }
     <p class="hint">글자 첫소리만 적어도 찾아줘요. ㄱㄹ → 고래</p>
   </form>
 
+  <div class="cats" id="cats" aria-label="분류" hidden></div>
+
   <section aria-live="polite">
     <p class="status" id="status"></p>
     <div id="results"></div>
@@ -310,12 +326,21 @@ body.playing .wrap { padding-bottom: calc(var(--dockH, 160px) + 24px); }
       </form>
       <p class="msg" id="urlMsg" aria-live="polite"></p>
 
+      <h4>내 영상 올리기</h4>
+      <p class="note">휴대폰이나 컴퓨터에 있는 영상·소리 파일을 올려요(40MB까지). 저장소가 공개라서 올린 파일은 주소를 아는 누구나 받을 수 있어요. 직접 찍은 영상처럼 올려도 괜찮은 것만 올려 주세요.</p>
+      <label class="btn upl" for="vFile">파일 고르기<input id="vFile" class="vh" type="file" accept="video/*,audio/*"></label>
+      <p class="msg" id="fileMsg" aria-live="polite"></p>
+
       <div class="ed" id="ed" hidden>
         <div class="edPlayer" id="edYTBox"><div id="edPlayer"></div></div>
         <audio id="edAudio" controls preload="metadata" playsinline hidden style="width:100%"></audio>
         <label for="vTitle">아이에게 보일 이름
           <input id="vTitle" type="text">
         </label>
+        <label for="vCat">분류 (예: 동물 노래, 자연이랑, 잘 때 듣기 · 비워도 돼요)
+          <input id="vCat" type="text" list="catList" maxlength="20" autocomplete="off">
+        </label>
+        <datalist id="catList"></datalist>
         <label for="vKeys">찾을 때 쓸 낱말 (띄어쓰기로 구분, 비워도 돼요)
           <input id="vKeys" type="text" placeholder="예: 상어 바다 동요">
         </label>
@@ -462,6 +487,8 @@ const errText = e => ({
   401: "토큰이 맞지 않거나 만료됐어요. 새로 만들어 저장해 주세요.",
   403: "토큰에 쓰기 권한이 없어요. Contents를 Read and write로 만들어 주세요.",
   404: "토큰이 kids-search 저장소에 접근하지 못해요. Repository access에 kids-search를 넣어 주세요.",
+  TOO_BIG: "파일이 너무 커서 올리지 못했어요. 40MB보다 작게 줄이거나 소리 파일(.m4a, .mp3)로 바꿔서 올려 주세요.",
+  READ: "파일을 읽지 못했어요. 다시 골라 주세요.",
   YT_KEY: "유튜브 API 키가 맞지 않거나 YouTube Data API v3가 켜져 있지 않아요.",
   YT_QUOTA: "오늘 유튜브 검색 한도를 다 썼어요. 내일 다시 하거나 주소를 붙여 넣어 주세요.",
 }[e.message] || `잘 안 됐어요 (${e.message}). 인터넷을 확인하고 다시 눌러 주세요.`);
@@ -500,7 +527,7 @@ function searchSongs(raw) {
     if (t.startsWith(q)) s = 3;
     else if (t.includes(q)) s = 2;
     else if (isAllCho(q) && chosung(t).includes(q)) s = 2;
-    else if ((v.keys || "").replace(/\s/g, "").includes(q)) s = 1;
+    else if (((v.keys || "") + (v.cat || "")).replace(/\s/g, "").includes(q)) s = 1;
     return { v, s };
   }).filter(x => x.s).sort((a, b) => b.s - a.s).map(x => x.v);
 }
@@ -551,6 +578,42 @@ const fileName = src => {
 };
 const hashStr = s => { let h = 5381; for (const c of s) h = ((h << 5) + h + c.charCodeAt(0)) >>> 0; return h.toString(36); };
 const isFile = v => !!(v && v.type === "file");
+const MAX_UPLOAD = 40 * 1024 * 1024;
+const readB64 = file => new Promise((res, rej) => {
+  const r = new FileReader();
+  r.onload = () => res(String(r.result).split(",")[1] || "");
+  r.onerror = () => rej(new Error("READ"));
+  r.readAsDataURL(file);
+});
+// 저장소 media 폴더에 파일 올리기. 올린 경로를 돌려줌
+async function uploadMedia(file) {
+  if (!token) throw new Error("NO_TOKEN");
+  const ext = ((file.name.match(/\.[a-z0-9]{2,5}$/i) || [""])[0] || (file.type.startsWith("audio/") ? ".m4a" : ".mp4")).toLowerCase();
+  const base = file.name.replace(/\.[^.]+$/, "").normalize("NFKD").replace(/[^\w-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "song";
+  const path = `media/${Date.now().toString(36)}-${base}${ext}`;
+  const content = await readB64(file);
+  const r = await fetch(`https://api.github.com/repos/${REPO}/contents/${path}`, {
+    method: "PUT",
+    headers: { ...ghHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({ message: `영상 올리기: ${file.name}`, content, branch: "main" }),
+  });
+  if (!r.ok) throw new Error(r.status === 413 || r.status === 422 ? "TOO_BIG" : String(r.status));
+  return path;
+}
+// 노래를 뺄 때, 다른 노래가 안 쓰는 올린 파일이면 같이 지움
+async function deleteMedia(path) {
+  try {
+    const url = `https://api.github.com/repos/${REPO}/contents/${path}`;
+    const r = await fetch(`${url}?ref=main`, { headers: ghHeaders(), cache: "no-store" });
+    if (!r.ok) return;
+    const { sha } = await r.json();
+    await fetch(url, {
+      method: "DELETE",
+      headers: { ...ghHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ message: `영상 지우기: ${path}`, sha, branch: "main" }),
+    });
+  } catch (e) {}
+}
 
 /* ---------- 아이 화면 재생 ---------- */
 let playingId = "", kidPlayer = null, kidReady = false, pending = null, startTimer = 0, screenOn = false;
@@ -735,10 +798,24 @@ function thumb(v, cls = "", inner = "") {
   </span>`;
 }
 const $q = $("q");
+let catSel = "";
+const catsOf = () => [...new Set(SONGS.map(v => (v.cat || "").trim()).filter(Boolean))];
+function renderCats() {
+  const cats = catsOf();
+  if (catSel && !cats.includes(catSel)) catSel = "";
+  $("cats").hidden = !cats.length;
+  $("cats").innerHTML = ["", ...cats].map(c =>
+    `<button type="button" class="cat" data-cat="${esc(c)}" aria-pressed="${c === catSel}">${c ? esc(c) : "전체"}</button>`).join("");
+}
+$("cats").addEventListener("click", e => {
+  const b = e.target.closest(".cat"); if (!b) return;
+  catSel = b.dataset.cat; render();
+});
 function render() {
+  renderCats();
   const raw = $q.value;
   const q = raw.trim().replace(/\s+/g, "");
-  const list = searchSongs(raw);
+  const list = searchSongs(raw).filter(v => !catSel || (v.cat || "").trim() === catSel);
   if (!SONGS.length) {
     $("status").textContent = "";
     $("results").innerHTML = `<p class="empty">아직 노래가 없어요. 어른에게 노래를 넣어 달라고 해 보세요.</p>`;
@@ -746,10 +823,12 @@ function render() {
   }
   if (!list.length) {
     $("status").textContent = "";
-    $("results").innerHTML = `<p class="empty">‘${esc(raw.trim())}’ 노래는 아직 없어요.</p>`;
+    $("results").innerHTML = q
+      ? `<p class="empty">‘${esc(raw.trim())}’ 노래는 ${catSel ? `‘${esc(catSel)}’에 ` : ""}아직 없어요.</p>`
+      : `<p class="empty">‘${esc(catSel)}’에는 아직 노래가 없어요.</p>`;
     return;
   }
-  $("status").textContent = q ? `${list.length}곡을 찾았어요!` : "내 노래";
+  $("status").textContent = q ? `${list.length}곡을 찾았어요!` : (catSel || "내 노래");
   $("results").innerHTML = `<div class="vids">${list.map(v => `
     <button type="button" class="vid" data-id="${esc(vkey(v))}">
       ${thumb(v, "", `<span class="play">${PLAY_ICON}</span>`)}
@@ -844,6 +923,24 @@ $("ysForm").addEventListener("submit", async e => {
 $("yres").addEventListener("click", e => {
   const b = e.target.closest(".pick"); if (!b) return;
   openEditor(found[+b.dataset.i]);
+});
+$("vFile").addEventListener("change", e => {
+  const file = e.target.files && e.target.files[0];
+  const $m = $("fileMsg");
+  e.target.value = "";
+  $m.className = "msg"; $m.textContent = "";
+  if (!file) return;
+  if (!/^(video|audio)\//.test(file.type) && !MEDIA_RE.test(file.name) && !/\.mov$/i.test(file.name)) {
+    $m.classList.add("err"); $m.textContent = "영상이나 소리 파일만 올릴 수 있어요."; return;
+  }
+  if (file.size > MAX_UPLOAD) {
+    $m.classList.add("err");
+    $m.textContent = `파일이 ${(file.size / 1048576).toFixed(0)}MB라서 너무 커요. 40MB보다 작게 줄이거나 소리 파일로 바꿔서 올려 주세요.`;
+    return;
+  }
+  if (!token) { $m.classList.add("err"); $m.textContent = errText(new Error("NO_TOKEN")); return; }
+  // 올리기 전에 이 기기에서 먼저 들어 보며 구간을 정함
+  openEditor({ type: "file", upload: file, src: URL.createObjectURL(file), title: file.name.replace(/\.[^.]+$/, ""), duration: 0 });
 });
 $("urlForm").addEventListener("submit", e => {
   e.preventDefault();
@@ -991,16 +1088,28 @@ $("addBtn").addEventListener("click", async () => {
   $("addBtn").disabled = true; $m.className = "msg"; $m.textContent = "넣는 중…";
   try {
     const keys = $("vKeys").value.trim();
+    const cat = $("vCat").value.trim();
+    let src = cur.uploadedPath || cur.src;
+    if (cur.upload && !cur.uploadedPath) {
+      $m.textContent = "파일 올리는 중… (크기에 따라 1분쯤 걸려요)";
+      src = await uploadMedia(cur.upload);
+      cur.uploadedPath = src;
+      $m.textContent = "넣는 중…";
+    }
     const song = isFile(cur)
-      ? { type: "file", src: cur.src, title, keys, start, end, key: `f${hashStr(cur.src)}-${start}-${end}` }
+      ? { type: "file", src, title, keys, start, end, key: `f${hashStr(src)}-${start}-${end}` }
       : { id: cur.id, title, keys, start, end, key: `${cur.id}-${start}-${end}` };
+    if (cat) song.cat = cat;
     await commit(list => {
       if (list.some(v => vkey(v) === song.key)) throw new Error("DUP");
       return [...list, song];
     }, `노래 넣기: ${title}`);
     if (edPlayer && edPlayer.stopVideo) edPlayer.stopVideo();
     edAudio.pause();
-    $m.className = "msg ok"; $m.textContent = `‘${title}’을(를) 넣었어요. 다른 기기에서도 바로 보여요.`;
+    $m.className = "msg ok";
+    $m.textContent = cur.upload
+      ? `‘${title}’을(를) 올렸어요. 사이트에 반영되는 1~2분 뒤부터 재생돼요.`
+      : `‘${title}’을(를) 넣었어요. 다른 기기에서도 바로 보여요.`;
     setTimeout(() => { $("ed").hidden = true; cur = null; }, 1500);
   } catch (err) {
     $m.className = "msg err"; $m.textContent = errText(err);
@@ -1011,27 +1120,38 @@ $("addBtn").addEventListener("click", async () => {
 function renderSaved() {
   $("saved").innerHTML = SONGS.length
     ? SONGS.map(v => `<li>${thumb(v, "sm")}
-        <span class="txt"><b class="ttl" tabindex="0" role="button" data-id="${esc(vkey(v))}" title="눌러서 이름 고치기">${esc(v.title)}</b><small>${esc([rangeText(v), v.keys].filter(Boolean).join(" · "))}</small></span>
+        <span class="txt"><b class="ttl" tabindex="0" role="button" data-id="${esc(vkey(v))}" title="눌러서 이름 고치기">${esc(v.title)}</b><small>${esc([rangeText(v), isFile(v) && /^media\//.test(v.src) ? "올린 파일" : "", v.keys].filter(Boolean).join(" · "))}</small>
+          <button type="button" class="catPill${v.cat ? " has" : ""}" data-id="${esc(vkey(v))}">${v.cat ? esc(v.cat) : "+ 분류"}</button></span>
         <button type="button" class="del" data-id="${esc(vkey(v))}">빼기</button></li>`).join("")
     : `<li><small>아직 넣은 노래가 없어요.</small></li>`;
+  $("catList").innerHTML = catsOf().map(c => `<option value="${esc(c)}"></option>`).join("");
 }
 // 넣은 노래 이름을 눌러서 고치기
-function editTitle(b) {
+function editTitle(b, field = "title") {
   const k = b.dataset.id;
   const v = SONGS.find(x => vkey(x) === k); if (!v) return;
+  const isCat = field === "cat";
+  const old = (v[field] || "").trim();
   const inp = document.createElement("input");
-  inp.className = "ttlEdit"; inp.value = v.title; inp.maxLength = 80;
-  inp.setAttribute("aria-label", "노래 이름");
+  inp.className = "ttlEdit"; inp.value = old; inp.maxLength = isCat ? 20 : 80;
+  if (isCat) { inp.setAttribute("list", "catList"); inp.placeholder = "분류 (비우면 빠져요)"; }
+  inp.setAttribute("aria-label", isCat ? "분류" : "노래 이름");
   b.replaceWith(inp); inp.focus(); inp.select();
   let done = false;
   const finish = async save => {
     if (done) return; done = true;
-    const title = inp.value.trim();
-    if (!save || !title || title === v.title) { renderSaved(); return; }
+    const val = inp.value.trim();
+    if (!save || (!val && !isCat) || val === old) { renderSaved(); return; }
     inp.disabled = true;
     try {
-      await commit(list => list.map(x => vkey(x) === k ? { ...x, title } : x), `노래 이름 고치기: ${title}`);
-      $("savedMsg").className = "msg ok"; $("savedMsg").textContent = `‘${title}’(으)로 고쳤어요.`;
+      await commit(list => list.map(x => {
+        if (vkey(x) !== k) return x;
+        const n = { ...x, [field]: val };
+        if (!val) delete n[field];
+        return n;
+      }), isCat ? `분류 바꾸기: ${v.title} → ${val || "없음"}` : `노래 이름 고치기: ${val}`);
+      $("savedMsg").className = "msg ok";
+      $("savedMsg").textContent = isCat ? (val ? `‘${val}’ 분류로 넣었어요.` : "분류에서 뺐어요.") : `‘${val}’(으)로 고쳤어요.`;
     } catch (err) {
       renderSaved();
       $("savedMsg").className = "msg err"; $("savedMsg").textContent = errText(err);
@@ -1050,6 +1170,8 @@ $("saved").addEventListener("keydown", e => {
 $("saved").addEventListener("click", async e => {
   const tb = e.target.closest(".ttl");
   if (tb) { editTitle(tb); return; }
+  const cb = e.target.closest(".catPill");
+  if (cb) { editTitle(cb, "cat"); return; }
   const b = e.target.closest(".del"); if (!b) return;
   if (!b.classList.contains("sure")) {
     $("saved").querySelectorAll(".del.sure").forEach(x => { x.classList.remove("sure"); x.textContent = "빼기"; });
@@ -1063,6 +1185,7 @@ $("saved").addEventListener("click", async e => {
     if (playingId === k) stop();
     const v = SONGS.find(x => vkey(x) === k);
     await commit(list => list.filter(x => vkey(x) !== k), `노래 빼기: ${v ? v.title : k}`);
+    if (v && isFile(v) && /^media\//.test(v.src) && !SONGS.some(x => x.src === v.src)) deleteMedia(v.src);
     $("savedMsg").textContent = "";
   } catch (err) {
     b.disabled = false; b.classList.remove("sure"); b.textContent = "빼기";
