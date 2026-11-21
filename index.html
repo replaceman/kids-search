@@ -121,6 +121,15 @@ mark { background: var(--sun); color: #233a4a; border-radius: 4px; padding: 0 2p
 .cover .eq i { width: 6px; background: var(--sun); border-radius: 3px; animation: eq 1s ease-in-out infinite; }
 .cover .eq i:nth-child(2) { animation-delay: -.3s; } .cover .eq i:nth-child(3) { animation-delay: -.6s; }
 .cover.paused .eq i { animation: none; height: 6px; }
+/* Vimeo가 자동 재생을 막았을 때: 그림은 덮어 둔 채, 누르면 아래 Vimeo 영상이 눌리게 함 */
+.cover .tapHint { display: none; }
+.dock.tap .dock-in { flex-wrap: wrap; }
+.dock.tap .player { width: min(356px, 100%); }
+.dock.tap .cover { pointer-events: none; }
+.dock.tap .cover .tapHint {
+  display: grid; place-items: center; position: absolute; inset: 0; text-align: center;
+  background: rgba(20, 30, 40, .45); color: #fff; font-family: var(--font-display); font-size: 24px; line-height: 1.3;
+}
 @keyframes eq { 0%,100% { height: 6px; } 50% { height: 28px; } }
 @media (prefers-reduced-motion: reduce) { .cover .eq i { animation: none; height: 14px; } }
 .dock-btns { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -132,6 +141,7 @@ mark { background: var(--sun); color: #233a4a; border-radius: 4px; padding: 0 2p
   border: 3px solid var(--ink); background: var(--card); color: var(--ink); cursor: pointer;
   font-family: var(--font-display); font-size: 18px; padding: 7px 18px; border-radius: 999px;
 }
+.rep[aria-pressed="false"] { border-color: var(--line); color: var(--ink-soft); }
 .rep[aria-pressed="true"] { background: var(--leaf); border-color: var(--leaf); color: #fff; }
 .rep:focus-visible { outline: 3px solid var(--tomato); outline-offset: 3px; }
 .peek { border: 2px solid var(--line); background: var(--card); color: var(--ink-soft); cursor: pointer;
@@ -656,17 +666,33 @@ async function deleteMedia(path) {
 let playingId = "", kidPlayer = null, kidReady = false, pending = null, startTimer = 0, screenOn = false;
 let curSong = null;
 // 한 곡 반복: 이 기기에 기억해 둠
-let repeatOn = store.get("kids-search-repeat") === "1";
+// 반복은 사이트를 열 때마다 꺼진 상태로 시작
+let repeatOn = false;
+store.del("kids-search-repeat");
 function renderRepeat() {
   $("rep").setAttribute("aria-pressed", String(repeatOn));
   $("rep").textContent = repeatOn ? "🔁 반복 켜짐" : "🔁 반복 꺼짐";
 }
 // 노래(또는 정해 둔 구간)가 끝났을 때: 반복이면 처음부터 다시
+let lastEnded = 0;
 function songEnded() {
-  if (repeatOn && curSong && kidReady) startSong(curSong);
+  const now = Date.now();
+  if (now - lastEnded < 1500) return;   // 끝 신호가 여러 번 와도 한 번만
+  lastEnded = now;
+  if (repeatOn && curSong && (kidReady || isFile(curSong) || isVimeo(curSong))) startSong(curSong);
   else stop();
 }
 // 화면은 그림으로 덮고 소리만. 광고 건너뛰기나 재생이 막혔을 땐 '화면 보기'로 열 수 있음
+function needTap(on) {
+  $("dock").classList.toggle("tap", on);
+  if (on) {
+    setMini(false);
+    $("dockNote").hidden = false;
+    $("dockNote").textContent = "이 기기는 처음 한 번 그림을 직접 눌러야 소리가 나요.";
+  } else if ($("dockNote").textContent.startsWith("이 기기는 처음 한 번")) {
+    $("dockNote").hidden = true; $("dockNote").textContent = "";
+  }
+}
 function showScreen(on, note) {
   screenOn = on;
   $("dock").classList.toggle("screen", on);
@@ -747,7 +773,7 @@ function showLayer(v) {
 function makeKidVimeo(v) {
   kidVimeo = new Vimeo.Player("kidVimeo", { url: vimeoUrl(v), autoplay: false, muted: false, playsinline: true, title: false, byline: false, portrait: false, width: 640 });
   kidVimeoOn = v.vimeo + (v.h || "");
-  kidVimeo.on("play", () => { if (!isVimeo(curSong)) return; setPaused(false); if (screenOn && $("dockNote").textContent) showScreen(false); });
+  kidVimeo.on("play", () => { if (!isVimeo(curSong)) return; needTap(false); setPaused(false); if (screenOn && $("dockNote").textContent) showScreen(false); });
   kidVimeo.on("pause", () => { if (isVimeo(curSong)) setPaused(true); });
   kidVimeo.on("ended", () => { if (isVimeo(curSong)) songEnded(); });
   kidVimeo.on("timeupdate", d => { if (isVimeo(curSong) && curSong.end && d.seconds >= curSong.end) songEnded(); });
@@ -785,9 +811,14 @@ async function startVimeo(v) {
     kidVimeo.setMuted(false).catch(() => {});
     kidVimeo.setVolume(1).catch(() => {});
   } catch (e) {
-    if (curSong === v) showScreen(true, "화면의 ▶를 한 번 눌러 주세요. 시작되면 다시 가려져요.");
+    if (curSong === v) needTap(true);
     return;
   }
+  // play()가 조용히 무시되는 기기도 있어서 잠시 뒤 실제로 재생 중인지 확인
+  setTimeout(async () => {
+    if (curSong !== v || !kidVimeo) return;
+    if (await kidVimeo.getPaused().catch(() => false)) needTap(true);
+  }, 900);
   // 그래도 음소거로 시작됐으면 화면을 열어 소리 버튼을 한 번 누르게 함
   setTimeout(async () => {
     if (curSong !== v || !kidVimeo) return;
@@ -827,7 +858,8 @@ function play(v) {
   playingId = k;
   curSong = v;
   clearTimeout(startTimer);
-  $("cover").innerHTML = `${thumb(v)}<span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>`;
+  $("cover").innerHTML = `${thumb(v)}<span class="eq" aria-hidden="true"><i></i><i></i><i></i></span><span class="tapHint">▶<br>여기를 한 번 더 눌러요</span>`;
+  needTap(false);
   $("nowTitle").textContent = v.title;
   $("dock").classList.remove("off");
   $("dock").setAttribute("aria-hidden", "false");
@@ -854,6 +886,7 @@ function stop() {
   if (kidReady) { try { kidPlayer.stopVideo(); } catch (e) {} }
   stopFile();
   pauseVimeo();
+  needTap(false);
   playingId = "";
   $("dock").classList.add("off");
   $("dock").setAttribute("aria-hidden", "true");
@@ -875,7 +908,6 @@ function startFileResume() {
 $("peek").addEventListener("click", () => showScreen(!screenOn));
 $("rep").addEventListener("click", () => {
   repeatOn = !repeatOn;
-  store.set("kids-search-repeat", repeatOn ? "1" : "0");
   renderRepeat();
 });
 renderRepeat();
