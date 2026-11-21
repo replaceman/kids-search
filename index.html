@@ -124,7 +124,7 @@ mark { background: var(--sun); color: #233a4a; border-radius: 4px; padding: 0 2p
 /* Vimeo가 자동 재생을 막았을 때: 그림은 덮어 둔 채, 누르면 아래 Vimeo 영상이 눌리게 함 */
 .cover .tapHint { display: none; }
 .dock.tap .dock-in { flex-wrap: wrap; }
-.dock.tap .player { width: min(356px, 100%); }
+.dock.tap .player { width: min(420px, 100%); }
 .dock.tap .cover { pointer-events: none; }
 .dock.tap .cover .tapHint {
   display: grid; place-items: center; position: absolute; inset: 0; text-align: center;
@@ -688,8 +688,8 @@ function needTap(on) {
   if (on) {
     setMini(false);
     $("dockNote").hidden = false;
-    $("dockNote").textContent = "이 기기는 처음 한 번 그림을 직접 눌러야 소리가 나요.";
-  } else if ($("dockNote").textContent.startsWith("이 기기는 처음 한 번")) {
+    $("dockNote").textContent = "이 노래는 처음 한 번 그림을 직접 눌러야 소리가 나요. 그다음부터는 바로 나와요.";
+  } else if ($("dockNote").textContent.startsWith("이 노래는 처음 한 번")) {
     $("dockNote").hidden = true; $("dockNote").textContent = "";
   }
 }
@@ -764,6 +764,8 @@ function stopFile() {
   delete kidAudio.dataset.src;
 }
 let kidVimeo = null, kidVimeoOn = "";
+// 이 페이지에서 Vimeo가 한 번이라도 아이 손으로 재생됐는지. 그 전에는 자동 재생을 시도하지 않음
+let vimeoUnlocked = false;
 function pauseVimeo() { if (kidVimeo) kidVimeo.pause().catch(() => {}); }
 function showLayer(v) {
   $("kidVimeo").hidden = !isVimeo(v);
@@ -773,7 +775,7 @@ function showLayer(v) {
 function makeKidVimeo(v) {
   kidVimeo = new Vimeo.Player("kidVimeo", { url: vimeoUrl(v), autoplay: false, muted: false, playsinline: true, title: false, byline: false, portrait: false, width: 640 });
   kidVimeoOn = v.vimeo + (v.h || "");
-  kidVimeo.on("play", () => { if (!isVimeo(curSong)) return; needTap(false); setPaused(false); if (screenOn && $("dockNote").textContent) showScreen(false); });
+  kidVimeo.on("play", () => { vimeoUnlocked = true; if (!isVimeo(curSong)) return; needTap(false); setPaused(false); if (screenOn && $("dockNote").textContent) showScreen(false); });
   kidVimeo.on("pause", () => { if (isVimeo(curSong)) setPaused(true); });
   kidVimeo.on("ended", () => { if (isVimeo(curSong)) songEnded(); });
   kidVimeo.on("timeupdate", d => { if (isVimeo(curSong) && curSong.end && d.seconds >= curSong.end) songEnded(); });
@@ -807,6 +809,12 @@ async function startVimeo(v) {
     kidVimeo.setMuted(false).catch(() => {});
     kidVimeo.setVolume(1).catch(() => {});
     await kidVimeo.setCurrentTime(v.start || 0).catch(() => {});
+    if (!vimeoUnlocked) {
+      // 아이폰 등은 Vimeo를 다른 사이트 버튼으로 소리 내서 못 틀게 막아요.
+      // 그래서 처음엔 곧바로 '한 번 더 누르기'를 띄우고, 아이가 그림을 누르면 아래 Vimeo 영상이 눌려 재생돼요.
+      if (curSong === v) needTap(true);
+      return;
+    }
     await kidVimeo.play();
     kidVimeo.setMuted(false).catch(() => {});
     kidVimeo.setVolume(1).catch(() => {});
