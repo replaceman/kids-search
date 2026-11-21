@@ -175,7 +175,9 @@ body.playing .wrap { padding-bottom: calc(var(--dockH, 160px) + 24px); }
 .dock.mini .dock-head { order: 3; }
 /* 화면 보기: 광고 건너뛰기 등 */
 .dock.screen .dock-in { flex-wrap: wrap; }
-.dock.screen .player { width: 356px; }
+.dock.screen .player { width: min(420px, 100%); }
+.dock.screen .dock-side, .dock.tap .dock-side { flex: 1 1 100%; }
+.dock { max-height: 100vh; max-height: 100dvh; overflow-y: auto; }
 @media (max-width: 480px) {
   .player { width: 96px; }
   .dock .pp, .dock .stop { font-size: 16px; padding: 6px 12px; }
@@ -785,9 +787,15 @@ function makeKidVimeo(v) {
       kidVimeo.getMuted().then(m => { if (!m) showScreen(false); }).catch(() => {});
     }
   });
-  kidVimeo.on("error", () => {
+  kidVimeo.on("error", e => {
     if (!isVimeo(curSong)) return;
-    showScreen(true, "이 Vimeo 영상을 재생하지 못했어요. 영상 설정에서 다른 사이트에 넣기(퍼가기)를 허용했는지 확인해 주세요.");
+    // 재생이 막혔다는 신호는 '한 번 더 누르기'로, 영상 자체를 못 여는 경우만 따로 안내
+    if (e && /Privacy|NotFound|Password/i.test(e.name || "")) {
+      $("dockNote").hidden = false;
+      $("dockNote").textContent = "이 Vimeo 영상은 다른 사이트에서 틀 수 없게 막혀 있어요.";
+      return;
+    }
+    needTap(true);
   });
 }
 function prepVimeo() {
@@ -836,7 +844,9 @@ async function startVimeo(v) {
     await kidVimeo.setMuted(false).catch(() => {});
     await kidVimeo.setVolume(1).catch(() => {});
     if (await kidVimeo.getMuted().catch(() => false)) {
-      showScreen(true, "소리가 꺼진 채 시작됐어요. 영상의 🔇 소리 버튼을 한 번 눌러 주세요. 그다음부터는 바로 소리가 나요.");
+      kidVimeo.pause().catch(() => {});
+      vimeoUnlocked = false;
+      needTap(true);
     }
   }, 1200);
 }
